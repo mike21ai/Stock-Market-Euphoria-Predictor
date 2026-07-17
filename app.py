@@ -982,6 +982,7 @@ def page_methodology():
     stat_p = m_data["statistical_test"]["p_value"]
     ticker_perf = m_data["ticker_performance"]
     global_attn = m_data["attention_weights"]
+    baseline_weights = m_data["baseline_weights"]
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     st.markdown('<div class="section-title">GLOBAL PERFORMANCE COMPARISON</div>', unsafe_allow_html=True)
@@ -1090,18 +1091,13 @@ def page_methodology():
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     st.markdown('<div class="section-title">BETTER TEMPORAL ALIGNMENT — ATTENTION WEIGHTS</div>', unsafe_allow_html=True)
 
-    # Ensure the sequence logic matches the original research (most recent day on the left)
+    # Both arrays are chronological (oldest to newest); reverse so Lag 0 (most recent) is on the left
     global_attn_reversed = list(reversed(global_attn))
+    y_base = list(reversed(baseline_weights))
 
     x_vals  = list(range(len(global_attn_reversed)))
     x_ticks = list(range(0, len(global_attn_reversed), 5))
     x_tick_labels = [f"Lag {idx}" for idx in x_ticks]
-
-    # Generate a baseline that distributes attention relatively evenly, mimicking a standard LSTM
-    y_base = [0.033 for _ in x_vals]
-    for i in range(len(y_base)):
-        if i < 5:
-            y_base[i] += (5-i) * 0.003
 
     fig_att = go.Figure()
     fig_att.add_trace(go.Scatter(
