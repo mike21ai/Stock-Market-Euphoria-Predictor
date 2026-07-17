@@ -198,6 +198,24 @@ def inject_global_css():
         letter-spacing: 0.12em; border-bottom: 1px solid #21262d;
         padding-bottom: 6px; margin-bottom: 14px;
     }
+
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+        display: flex !important; flex-wrap: wrap; gap: 8px;
+    }
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label {
+        background: #161b22 !important; border: 1px solid #30363d !important;
+        border-radius: 20px; padding: 6px 14px !important; margin: 0 !important;
+        cursor: pointer; transition: all 0.15s ease-in-out;
+    }
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:hover {
+        border-color: #58a6ff !important; color: #c9d1d9 !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
+        border-color: #58a6ff !important; background: rgba(88,166,255,0.15) !important; color: #58a6ff !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
+        display: none;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1157,10 +1175,12 @@ def render_sidebar() -> tuple[str, str]:
             ["Stock Analysis", "Market Screener", "Methodology"],
             key="nav_page",
         )
-        ticker = st.selectbox(
+        ticker = st.radio(
             "SELECT TICKER",
             TICKERS,
             key="nav_ticker",
+            horizontal=True,
+            label_visibility="visible",
         )
 
         st.markdown("""
