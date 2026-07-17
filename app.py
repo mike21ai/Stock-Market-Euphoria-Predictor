@@ -709,15 +709,15 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
                     st.markdown('<div class="section-title">EVENT ANALYSIS</div>', unsafe_allow_html=True)
-                    rsi_ok    = bool(r["RSI14"] > 70)
-                    vol_ok    = bool(r["Volume"] >= 2 * r["vol_avg"])
-                    sent_ok   = bool(r["sentiment"] >= 0.50)
-                    tweet_ok  = bool(r["tweet_count"] >= r["tweet_avg"])
+                    price_ok = bool(r["Close"] >= r["price_avg"]) if "price_avg" in r else False
+                    vol_ok   = bool(r["Volume"] >= r["vol_avg"]) if "vol_avg" in r else False
+                    sent_ok  = bool(r["sentiment"] >= 0.50)
+                    tweet_ok = bool(r["tweet_count"] >= r["tweet_avg"]) if "tweet_avg" in r else False
                     conditions = [
-                        ("RSI > 70", rsi_ok, f"{r['RSI14']:.1f}"),
-                        ("Volume >= 2x 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r['vol_avg'])}"),
+                        ("Close Price >= 30-Day Avg", price_ok, f"{r['Close']:,.0f} / {r.get('price_avg', 0):,.0f}"),
+                        ("Volume >= 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r.get('vol_avg', 0))}"),
                         ("IndoBERT Sentiment >= 0.50", sent_ok, f"{r['sentiment']:.3f}"),
-                        ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r['tweet_avg']:.1f}"),
+                        ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r.get('tweet_avg', 0):.1f}"),
                     ]
                     met_count = sum(1 for _, ok, _ in conditions if ok)
                     cond_rows = ""
