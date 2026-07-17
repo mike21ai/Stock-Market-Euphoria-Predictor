@@ -689,7 +689,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 st.markdown(f"""
                 <div style="overflow-x:auto;max-height:200px;overflow-y:auto;">
                 <table class="styled-table">
-                    <thead><tr><th>Date (click to drill)</th><th>Close</th><th>Prob</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Close</th><th>Prob</th></tr></thead>
                     <tbody>{eu_rows}</tbody>
                 </table></div>
                 """, unsafe_allow_html=True)
