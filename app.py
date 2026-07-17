@@ -51,6 +51,12 @@ COMPANY_INFO = {
     "KONI": {"name": "Perdana Bangun Pusaka",            "sector": "Industrials",     "founded": 1981, "director": "Syamsul Hidayat"},
 }
 
+THRESHOLDS = {
+    "KARW": 0.60, "FORU": 0.55, "SRAJ": 0.58, "PANI": 0.62, "DSSA": 0.70,
+    "SGER": 0.50, "TPIA": 0.65, "BRMS": 0.52, "MLPT": 0.68, "BRPT": 0.60,
+    "TOBA": 0.55, "AUTO": 0.50, "IMAS": 0.52, "PSAB": 0.55, "KONI": 0.50,
+}
+
 COLORS = {
     "bg":     "#0d1117",
     "panel":  "#161b22",
@@ -253,12 +259,16 @@ def render_top_bar(screener_df: pd.DataFrame):
     """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# DATA FETCHING — UPDATED
+# DATA FETCHING
 # ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     try:
         df = pd.read_csv("Streamlit_Daily_Data.csv")
+        df = df.rename(columns={
+            "date": "Date", "ticker": "Ticker", "open": "Open", "high": "High",
+            "low": "Low", "close": "Close", "volume": "Volume", "rsi_14": "RSI14",
+        })
         df["Date"] = pd.to_datetime(df["Date"])
         df = df[df["Ticker"] == ticker].sort_values("Date")
         df["is_euphoric"] = df["is_euphoric"].fillna(0).astype(int)
@@ -273,6 +283,10 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
 def build_screener_df() -> pd.DataFrame:
     try:
         df = pd.read_csv("Streamlit_Daily_Data.csv")
+        df = df.rename(columns={
+            "date": "Date", "ticker": "Ticker", "open": "Open", "high": "High",
+            "low": "Low", "close": "Close", "volume": "Volume", "rsi_14": "RSI14",
+        })
         df["Date"] = pd.to_datetime(df["Date"])
         rows = []
         for ticker in TICKERS:
@@ -283,8 +297,10 @@ def build_screener_df() -> pd.DataFrame:
             
             close = float(latest["Close"])
             chg_pct = float(latest["price_change_pct"]) if "price_change_pct" in latest else 0.0
+            vol_chg_pct = float(latest["volume_change_pct"]) if "volume_change_pct" in latest else 0.0
             prob = float(latest["prob"])
-            status = "HYPE RISK" if prob > 0.65 else "NORMAL"
+            threshold = THRESHOLDS.get(ticker, 0.65)
+            status = "HYPE RISK" if prob > threshold else "NORMAL"
             
             rows.append({
                 "Ticker": ticker, 
@@ -295,6 +311,7 @@ def build_screener_df() -> pd.DataFrame:
                 "Close": round(close, 2),
                 "Volume": float(latest["Volume"]), 
                 "Change%": round(chg_pct, 2),
+                "VolumeChange%": round(vol_chg_pct, 2),
                 "Sentiment": round(float(latest["sentiment"]), 3), 
                 "EuphoriaProb": round(prob, 3), 
                 "Status": status,
@@ -305,7 +322,7 @@ def build_screener_df() -> pd.DataFrame:
         return pd.DataFrame()
 
 # ──────────────────────────────────────────────────────────────
-# HELPERS — UPDATED
+# HELPERS
 # ──────────────────────────────────────────────────────────────
 def fmt_volume(v: float) -> str:
     if v >= 1e9: return f"{v/1e9:.2f}B"
@@ -313,9 +330,10 @@ def fmt_volume(v: float) -> str:
     if v >= 1e3: return f"{v/1e3:.2f}K"
     return str(int(v))
 
-def color_prob(p: float) -> str:
-    if p >= 0.75: return "#f85149"
-    if p >= 0.50: return "#d29922"
+def color_prob(p: float, ticker: str = None) -> str:
+    threshold = THRESHOLDS.get(ticker, 0.65) if ticker else 0.65
+    if p >= threshold: return "#f85149"
+    if p >= threshold * 0.7: return "#d29922"
     return "#3fb950"
 
 def get_xrange(df: pd.DataFrame, tf: str):
@@ -334,6 +352,7 @@ def get_xrange(df: pd.DataFrame, tf: str):
 def get_tweets(ticker: str, date_str: str) -> list:
     try:
         df = pd.read_csv("Streamlit_Tweet_Feed.csv")
+        df = df.rename(columns={"date": "Date", "ticker": "Ticker", "tweet_text": "Tweet_Text"})
         df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
         
         if isinstance(date_str, pd.Timestamp):
@@ -550,7 +569,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
         with col_ai:
             st.markdown('<div class="section-title">AI INFERENCE ENGINE</div>', unsafe_allow_html=True)
             prob_val = float(latest["prob"])
-            p_color  = color_prob(prob_val)
+            p_color  = color_prob(prob_val, ticker)
 
             st.markdown(f"""
             <div class="ai-card fade-in">
@@ -564,6 +583,23 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                     <div style="height:4px;width:{prob_val*100:.0f}%;background:{p_color};border-radius:2px;"></div>
                 </div>
                 <div style="font-size:10px;color:#8b949e;margin-top:6px;">BiLSTM + Bahdanau Attention</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            forecast_price = float(latest["close_price"])
+            forecast_delta = forecast_price - last_price
+            forecast_color = COLORS["green"] if forecast_delta >= 0 else COLORS["red"]
+            forecast_arrow = "+" if forecast_delta >= 0 else ""
+            st.markdown(f"""
+            <div class="ai-card fade-in">
+                <div style="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;">
+                    Next-Day Price Forecast
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{forecast_color};">
+                    {forecast_price:,.0f}
+                </div>
+                <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:{forecast_color};margin-top:4px;">{forecast_arrow}{forecast_delta:,.0f} vs last close</div>
+                <div style="font-size:10px;color:#8b949e;margin-top:6px;">BiLSTM Regression Head</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -601,7 +637,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             log_df  = df.tail(10)[["Date", "Close", "prob", "is_euphoric"]].copy()
             log_rows = ""
             for _, r in log_df.iterrows():
-                pc  = color_prob(r["prob"])
+                pc  = color_prob(r["prob"], ticker)
                 sts = "HYPE" if r["is_euphoric"] else "NORMAL"
                 sc2 = "#f85149" if r["is_euphoric"] else "#3fb950"
                 log_rows += f"""
@@ -655,6 +691,39 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
                     st.markdown('<div class="section-title">EVENT ANALYSIS</div>', unsafe_allow_html=True)
+                    rsi_ok    = bool(r["RSI14"] > 70)
+                    vol_ok    = bool(r["Volume"] >= 2 * r["vol_avg"])
+                    sent_ok   = bool(r["sentiment"] >= 0.50)
+                    tweet_ok  = bool(r["tweet_count"] >= r["tweet_avg"])
+                    conditions = [
+                        ("RSI > 70", rsi_ok, f"{r['RSI14']:.1f}"),
+                        ("Volume >= 2x 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r['vol_avg'])}"),
+                        ("IndoBERT Sentiment >= 0.50", sent_ok, f"{r['sentiment']:.3f}"),
+                        ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r['tweet_avg']:.1f}"),
+                    ]
+                    met_count = sum(1 for _, ok, _ in conditions if ok)
+                    cond_rows = ""
+                    for label, ok, detail in conditions:
+                        vc = "#3fb950" if ok else "#f85149"
+                        vt = "YES" if ok else "NO"
+                        cond_rows += f"""
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">
+                                <div style="font-size:12px;color:#c9d1d9;">{label}</div>
+                                <div style="text-align:right;">
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:{vc};">{vt}</span>
+                                </div>
+                            </div>"""
+                    st.markdown(f"""
+                    <div class="drill-card fade-in" style="border-left-color:#d29922;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <div style="font-size:10px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Rule-Based Euphoria Conditions</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#d29922;">{met_count}/4 Met</div>
+                        </div>
+                        {cond_rows}
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     prev_row   = df[df["Date"] < pd.Timestamp(selected_date)].tail(1)
                     prev_close = prev_row.iloc[0]["Close"] if not prev_row.empty else r["Close"]
                     day_chg    = (r["Close"] - prev_close) / prev_close * 100
@@ -786,7 +855,7 @@ def page_screener(screener_df: pd.DataFrame):
         chg_color = "#3fb950" if chg >= 0 else "#f85149"
         chg_str   = f"+{chg:.2f}%" if chg >= 0 else f"{chg:.2f}%"
         sc        = "#3fb950" if r["Sentiment"] > 0.1 else ("#f85149" if r["Sentiment"] < -0.1 else "#d29922")
-        ep_color  = "#f85149" if r["EuphoriaProb"] > 0.65 else "#3fb950"
+        ep_color  = "#f85149" if r["EuphoriaProb"] > THRESHOLDS.get(t, 0.65) else "#3fb950"
         href      = f"?page=Stock+Analysis&ticker={t}"
         rows_html += f"""
         <tr>
@@ -819,7 +888,7 @@ def page_screener(screener_df: pd.DataFrame):
     fig_bar = go.Figure(go.Bar(
         x=screener_df["Ticker"],
         y=screener_df["EuphoriaProb"] * 100,
-        marker_color=["#f85149" if v > 0.65 else ("#d29922" if v > 0.40 else "#3fb950") for v in screener_df["EuphoriaProb"]],
+        marker_color=["#f85149" if v > THRESHOLDS.get(tk, 0.65) else ("#d29922" if v > THRESHOLDS.get(tk, 0.65) * 0.6 else "#3fb950") for tk, v in zip(screener_df["Ticker"], screener_df["EuphoriaProb"])],
         text=[f"{v*100:.1f}%" for v in screener_df["EuphoriaProb"]],
         textposition="outside",
         textfont=dict(size=10, family="JetBrains Mono"),
@@ -833,11 +902,10 @@ def page_screener(screener_df: pd.DataFrame):
         bargap=0.35,
         showlegend=False,
     )
-    fig_bar.add_hline(y=65, line=dict(color="#f85149", dash="dash", width=1))
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
-# PAGE: METHODOLOGY — UPDATED
+# PAGE: METHODOLOGY
 # ──────────────────────────────────────────────────────────────
 def page_methodology():
     st.markdown("""
