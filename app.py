@@ -259,7 +259,7 @@ def render_top_bar(screener_df: pd.DataFrame):
     """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# DATA FETCHING
+# DATA FETCHING — UPDATED
 # ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
@@ -322,7 +322,7 @@ def build_screener_df() -> pd.DataFrame:
         return pd.DataFrame()
 
 # ──────────────────────────────────────────────────────────────
-# HELPERS
+# HELPERS — UPDATED
 # ──────────────────────────────────────────────────────────────
 def fmt_volume(v: float) -> str:
     if v >= 1e9: return f"{v/1e9:.2f}B"
@@ -706,14 +706,14 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                     for label, ok, detail in conditions:
                         vc = "#3fb950" if ok else "#f85149"
                         vt = "YES" if ok else "NO"
-                        cond_rows += f"""
-                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">
-                                <div style="font-size:12px;color:#c9d1d9;">{label}</div>
-                                <div style="text-align:right;">
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:{vc};">{vt}</span>
-                                </div>
-                            </div>"""
+                        cond_rows += (
+                            '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">'
+                            f'<div style="font-size:12px;color:#c9d1d9;">{label}</div>'
+                            '<div style="text-align:right;">'
+                            f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>'
+                            f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:{vc};">{vt}</span>'
+                            '</div></div>'
+                        )
                     st.markdown(f"""
                     <div class="drill-card fade-in" style="border-left-color:#d29922;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -905,7 +905,7 @@ def page_screener(screener_df: pd.DataFrame):
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
-# PAGE: METHODOLOGY
+# PAGE: METHODOLOGY — UPDATED
 # ──────────────────────────────────────────────────────────────
 def page_methodology():
     st.markdown("""
