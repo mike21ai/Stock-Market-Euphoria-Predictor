@@ -1152,7 +1152,7 @@ def page_methodology():
 # ──────────────────────────────────────────────────────────────
 # SIDEBAR
 # ──────────────────────────────────────────────────────────────
-def render_sidebar() -> tuple[str, str]:
+def render_sidebar(qp_page: str = "", qp_ticker: str = "") -> tuple[str, str]:
     with st.sidebar:
         st.markdown("""
         <div style="margin-bottom:24px;">
@@ -1165,6 +1165,13 @@ def render_sidebar() -> tuple[str, str]:
         </div>
         """, unsafe_allow_html=True)
         st.markdown('<div style="height:1px;background:#21262d;margin-bottom:18px;"></div>', unsafe_allow_html=True)
+
+        if "nav_page" not in st.session_state and qp_page:
+            page_options = ["Stock Analysis", "Market Screener", "Methodology"]
+            if qp_page in page_options:
+                st.session_state["nav_page"] = qp_page
+        if "nav_ticker" not in st.session_state and qp_ticker in TICKERS:
+            st.session_state["nav_ticker"] = qp_ticker
 
         page = st.selectbox(
             "TERMINAL MENU",
@@ -1200,10 +1207,10 @@ def main():
     qp_ticker = params.get("ticker", "")
     qp_drill  = params.get("drill_date", "")
 
-    sidebar_page, sidebar_ticker = render_sidebar()
+    sidebar_page, sidebar_ticker = render_sidebar(qp_page.replace("+", " ") if qp_page else "", qp_ticker)
 
-    active_page   = qp_page.replace("+", " ") if qp_page else sidebar_page
-    active_ticker = qp_ticker if qp_ticker in TICKERS else sidebar_ticker
+    active_page   = sidebar_page
+    active_ticker = sidebar_ticker
 
     with st.spinner("Fetching real-time market and AI data..."):
         screener_df = build_screener_df()
