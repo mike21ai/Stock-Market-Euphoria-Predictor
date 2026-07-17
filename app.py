@@ -216,24 +216,6 @@ def inject_global_css():
     [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
         display: none;
     }
-
-    #tab-nav-marker + div div[data-testid="stRadio"] [role="radiogroup"] {
-        display: flex !important; gap: 4px; border-bottom: 1px solid #21262d; margin-bottom: 16px;
-    }
-    #tab-nav-marker + div div[data-testid="stRadio"] [role="radiogroup"] label {
-        background: transparent !important; border: none !important; border-radius: 0 !important;
-        padding: 10px 16px !important; margin: 0 !important; color: #8b949e !important;
-        font-weight: 600; border-bottom: 2px solid transparent;
-    }
-    #tab-nav-marker + div div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-        color: #c9d1d9 !important;
-    }
-    #tab-nav-marker + div div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-        color: #58a6ff !important; border-bottom-color: #58a6ff !important;
-    }
-    #tab-nav-marker + div div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child {
-        display: none;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -489,24 +471,9 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    if "active_tab" not in st.session_state:
-        st.session_state.active_tab = 0
-    if "last_drill_date" not in st.session_state:
-        st.session_state.last_drill_date = ""
-    if drill_date and drill_date != st.session_state.last_drill_date:
-        st.session_state.active_tab = 1
-        st.session_state.last_drill_date = drill_date
-        st.session_state["tab_nav_radio"] = "Euphoria Drill-Through"
+    tab1, tab2, tab3 = st.tabs(["Chart & AI", "Euphoria Drill-Through", "Company Profile"])
 
-    tab_labels = ["Chart & AI", "Euphoria Drill-Through", "Company Profile"]
-    st.markdown('<div id="tab-nav-marker"></div>', unsafe_allow_html=True)
-    selected_tab = st.radio(
-        "Section", tab_labels, index=0, horizontal=True,
-        key="tab_nav_radio", label_visibility="collapsed",
-    )
-    st.session_state.active_tab = tab_labels.index(selected_tab)
-
-    if selected_tab == "Chart & AI":
+    with tab1:
         col_chart, col_ai = st.columns([7, 3])
         with col_chart:
             ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([2, 1.5, 1.5, 2])
@@ -709,26 +676,25 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             eu_all = df[df["is_euphoric"] == 1][["Date", "Close", "prob"]].copy()
             if not eu_all.empty:
                 st.markdown('<div class="section-title" style="margin-top:16px;">EUPHORIA SIGNALS</div>', unsafe_allow_html=True)
-                hcol1, hcol2, hcol3 = st.columns([2, 1, 1])
-                hcol1.markdown('<div style="font-size:13px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.07em;">Date (click to drill)</div>', unsafe_allow_html=True)
-                hcol2.markdown('<div style="font-size:13px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.07em;">Close</div>', unsafe_allow_html=True)
-                hcol3.markdown('<div style="font-size:13px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.07em;">Prob</div>', unsafe_allow_html=True)
+                eu_rows = ""
                 for _, r in eu_all.iterrows():
                     d_str = r["Date"].strftime("%Y-%m-%d")
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    with c1:
-                        if st.button(d_str, key=f"eu_sig_{ticker}_{d_str}"):
-                            st.query_params["page"] = "Stock Analysis"
-                            st.query_params["ticker"] = ticker
-                            st.query_params["drill_date"] = d_str
-                            st.session_state.active_tab = 1
-                            st.session_state.last_drill_date = d_str
-                            st.session_state["tab_nav_radio"] = "Euphoria Drill-Through"
-                            st.rerun()
-                    c2.markdown(f"<div style='font-family:\"JetBrains Mono\",monospace;font-size:14px;color:#c9d1d9;padding-top:8px;'>{r['Close']:,.0f}</div>", unsafe_allow_html=True)
-                    c3.markdown(f"<div style='font-family:\"JetBrains Mono\",monospace;font-size:14px;color:#f85149;padding-top:8px;'>{r['prob']*100:.1f}%</div>", unsafe_allow_html=True)
+                    href  = f"?page=Stock+Analysis&ticker={ticker}&drill_date={d_str}&active_tab=drill"
+                    eu_rows += f"""
+                    <tr>
+                        <td><a href="{href}" target="_self">{d_str}</a></td>
+                        <td>{r['Close']:,.0f}</td>
+                        <td style="color:#f85149;">{r['prob']*100:.1f}%</td>
+                    </tr>"""
+                st.markdown(f"""
+                <div style="overflow-x:auto;max-height:200px;overflow-y:auto;">
+                <table class="styled-table">
+                    <thead><tr><th>Date (click to drill)</th><th>Close</th><th>Prob</th></tr></thead>
+                    <tbody>{eu_rows}</tbody>
+                </table></div>
+                """, unsafe_allow_html=True)
 
-    elif selected_tab == "Euphoria Drill-Through":
+    with tab2:
         eu_dates = df[df["is_euphoric"] == 1]["Date"].dt.strftime("%Y-%m-%d").tolist()
         if not eu_dates:
             st.info("No euphoria events detected for this ticker in the evaluation set.")
@@ -856,7 +822,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                         </div>
                         """, unsafe_allow_html=True)
 
-    elif selected_tab == "Company Profile":
+    with tab3:
         st.markdown('<div class="section-title">COMPANY PROFILE</div>', unsafe_allow_html=True)
         p = COMPANY_INFO.get(ticker, {})
         pc1, pc2, pc3, pc4 = st.columns(4)
