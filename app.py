@@ -565,7 +565,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 **PLOTLY_BASE,
                 height=620,
                 hovermode="x unified",
-                xaxis_rangeslider_visible=True,
+                xaxis_rangeslider_visible=False,
                 showlegend=True,
             )
             fig.update_yaxes(secondary_y=True, showticklabels=False, showgrid=False, range=[0, 4])
@@ -579,7 +579,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             fig.update_xaxes(
                 gridcolor="#21262d", showspikes=True,
                 spikecolor="#30363d", spikethickness=1,
-                rangeslider_visible=True,
+                rangeslider_visible=False,
                 **(dict(range=xaxis_range) if xaxis_range else {}),
             )
             st.plotly_chart(fig, use_container_width=True)
