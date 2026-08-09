@@ -173,12 +173,6 @@ def inject_global_css():
         display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
     }
 
-    .tweet-card {
-        background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-        padding: 16px; margin-bottom: 10px; transition: all 0.2s ease-in-out;
-    }
-    .tweet-card:hover { border-color: #58a6ff; box-shadow: 0 4px 12px rgba(88,166,255,0.1); }
-
     div[data-testid="stSelectbox"] label,
     div[data-testid="stRadio"] label,
     div[data-testid="stCheckbox"] label {
@@ -366,26 +360,6 @@ def get_xrange(df: pd.DataFrame, tf: str):
     x_end   = (end + timedelta(days=2)).strftime("%Y-%m-%d")
     x_start = start.strftime("%Y-%m-%d")
     return x_start, x_end
-
-def get_tweets(ticker: str, date_str: str) -> list:
-    try:
-        df = pd.read_csv("Streamlit_Tweet_Feed.csv")
-        df = df.rename(columns={"date": "Date", "ticker": "Ticker", "tweet_text": "Tweet_Text"})
-        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
-        
-        if isinstance(date_str, pd.Timestamp):
-            date_str = date_str.strftime("%Y-%m-%d")
-        else:
-            date_str = str(date_str)[:10]
-            
-        df_f = df[(df["Ticker"] == ticker) & (df["Date"] == date_str)]
-        tweets = []
-        for idx, row in df_f.iterrows():
-            username = f"@IDX_Trader_{idx % 100}"
-            tweets.append((username, str(row["Tweet_Text"]), date_str))
-        return tweets
-    except Exception:
-        return []
 
 PLOTLY_BASE = dict(
     template="plotly_dark",
@@ -706,121 +680,95 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 st.warning("Date not found in data.")
             else:
                 r = row.iloc[0]
-                col_d1, col_d2 = st.columns([1, 1])
-                with col_d1:
-                    st.markdown('<div class="section-title">EVENT ANALYSIS</div>', unsafe_allow_html=True)
-                    price_ok = bool(r["Close"] >= r["price_avg"]) if "price_avg" in r else False
-                    vol_ok   = bool(r["Volume"] >= r["vol_avg"]) if "vol_avg" in r else False
-                    sent_ok  = bool(r["sentiment"] >= 0.50)
-                    tweet_ok = bool(r["tweet_count"] >= r["tweet_avg"]) if "tweet_avg" in r else False
-                    conditions = [
-                        ("Close Price >= 30-Day Avg", price_ok, f"{r['Close']:,.0f} / {r.get('price_avg', 0):,.0f}"),
-                        ("Volume >= 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r.get('vol_avg', 0))}"),
-                        ("IndoBERT Sentiment >= 0.50", sent_ok, f"{r['sentiment']:.3f}"),
-                        ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r.get('tweet_avg', 0):.1f}"),
-                    ]
-                    met_count = sum(1 for _, ok, _ in conditions if ok)
-                    cond_rows = ""
-                    for label, ok, detail in conditions:
-                        vc = "#3fb950" if ok else "#f85149"
-                        vt = "YES" if ok else "NO"
-                        cond_rows += (
-                            '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">'
-                            f'<div style="font-size:14px;color:#c9d1d9;">{label}</div>'
-                            '<div style="text-align:right;">'
-                            f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>'
-                            f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:700;color:{vc};">{vt}</span>'
-                            '</div></div>'
-                        )
-                    st.markdown(f"""
-                    <div class="drill-card fade-in" style="border-left-color:#d29922;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Rule-Based Euphoria Conditions</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#d29922;">{met_count}/4 Met</div>
-                        </div>
-                        {cond_rows}
+                st.markdown('<div class="section-title">EVENT ANALYSIS</div>', unsafe_allow_html=True)
+                price_ok = bool(r["Close"] >= r["price_avg"]) if "price_avg" in r else False
+                vol_ok   = bool(r["Volume"] >= r["vol_avg"]) if "vol_avg" in r else False
+                sent_ok  = bool(r["sentiment"] >= 0.50)
+                tweet_ok = bool(r["tweet_count"] >= r["tweet_avg"]) if "tweet_avg" in r else False
+                conditions = [
+                    ("Close Price >= 30-Day Avg", price_ok, f"{r['Close']:,.0f} / {r.get('price_avg', 0):,.0f}"),
+                    ("Volume >= 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r.get('vol_avg', 0))}"),
+                    ("IndoBERT Sentiment >= 0.50", sent_ok, f"{r['sentiment']:.3f}"),
+                    ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r.get('tweet_avg', 0):.1f}"),
+                ]
+                met_count = sum(1 for _, ok, _ in conditions if ok)
+                cond_rows = ""
+                for label, ok, detail in conditions:
+                    vc = "#3fb950" if ok else "#f85149"
+                    vt = "YES" if ok else "NO"
+                    cond_rows += (
+                        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">'
+                        f'<div style="font-size:14px;color:#c9d1d9;">{label}</div>'
+                        '<div style="text-align:right;">'
+                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>'
+                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:700;color:{vc};">{vt}</span>'
+                        '</div></div>'
+                    )
+                st.markdown(f"""
+                <div class="drill-card fade-in" style="border-left-color:#d29922;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Rule-Based Euphoria Conditions</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#d29922;">{met_count}/4 Met</div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    {cond_rows}
+                </div>
+                """, unsafe_allow_html=True)
 
-                    prev_row   = df[df["Date"] < pd.Timestamp(selected_date)].tail(1)
-                    prev_close = prev_row.iloc[0]["Close"] if not prev_row.empty else r["Close"]
-                    day_chg    = (r["Close"] - prev_close) / prev_close * 100
-                    five_ago   = df[df["Date"] < pd.Timestamp(selected_date)].tail(5)
-                    five_ret   = (r["Close"] - five_ago.iloc[0]["Close"]) / five_ago.iloc[0]["Close"] * 100 if not five_ago.empty else 0
+                prev_row   = df[df["Date"] < pd.Timestamp(selected_date)].tail(1)
+                prev_close = prev_row.iloc[0]["Close"] if not prev_row.empty else r["Close"]
+                day_chg    = (r["Close"] - prev_close) / prev_close * 100
+                five_ago   = df[df["Date"] < pd.Timestamp(selected_date)].tail(5)
+                five_ret   = (r["Close"] - five_ago.iloc[0]["Close"]) / five_ago.iloc[0]["Close"] * 100 if not five_ago.empty else 0
 
-                    st.markdown(f"""
-                    <div class="drill-card fade-in" style="border-left-color:#f85149;">
-                        <div style="font-size:13px;font-weight:700;color:#f85149;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Price / Volume Explosion</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                            <div><div style="font-size:13px;color:#8b949e;">Close Price</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{r['Close']:,.0f}</div></div>
-                            <div><div style="font-size:13px;color:#8b949e;">Day Change</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#f85149;">+{day_chg:.2f}%</div></div>
-                            <div><div style="font-size:13px;color:#8b949e;">5-Day Return</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#d29922;">+{five_ret:.2f}%</div></div>
-                            <div><div style="font-size:13px;color:#8b949e;">Volume</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{fmt_volume(r['Volume'])}</div></div>
-                        </div>
+                st.markdown(f"""
+                <div class="drill-card fade-in" style="border-left-color:#f85149;">
+                    <div style="font-size:13px;font-weight:700;color:#f85149;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Price / Volume Explosion</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div><div style="font-size:13px;color:#8b949e;">Close Price</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{r['Close']:,.0f}</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">Day Change</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#f85149;">+{day_chg:.2f}%</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">5-Day Return</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#d29922;">+{five_ret:.2f}%</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">Volume</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{fmt_volume(r['Volume'])}</div></div>
                     </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
 
-                    st.markdown(f"""
-                    <div class="drill-card fade-in" style="border-left-color:#a371f7;">
-                        <div style="font-size:13px;font-weight:700;color:#a371f7;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Social Media Amplification</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                            <div><div style="font-size:13px;color:#8b949e;">Tweet Count</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count']):,}</div></div>
-                            <div><div style="font-size:13px;color:#8b949e;">Spike vs Avg</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count'] / max(df['tweet_count'].mean(), 1)):.0f}x</div></div>
-                        </div>
-                        <div style="margin-top:10px;">
-                            <div style="height:6px;background:#21262d;border-radius:3px;">
-                                <div style="height:6px;width:{min(r['tweet_count']/max(df['tweet_count'].max(),1)*100,100):.0f}%;background:linear-gradient(90deg,#a371f7,#f85149);border-radius:3px;"></div>
-                            </div>
-                            <div style="font-size:9px;color:#8b949e;margin-top:4px;">Relative to maximum observed window</div>
-                        </div>
+                st.markdown(f"""
+                <div class="drill-card fade-in" style="border-left-color:#a371f7;">
+                    <div style="font-size:13px;font-weight:700;color:#a371f7;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Social Media Amplification</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div><div style="font-size:13px;color:#8b949e;">Tweet Count</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count']):,}</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">Spike vs Avg</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count'] / max(df['tweet_count'].mean(), 1)):.0f}x</div></div>
                     </div>
-                    """, unsafe_allow_html=True)
-
-                    sc2 = COLORS["green"] if r["sentiment"] > 0.1 else (COLORS["red"] if r["sentiment"] < -0.1 else COLORS["yellow"])
-                    st.markdown(f"""
-                    <div class="drill-card fade-in" style="border-left-color:#39d353;">
-                        <div style="font-size:13px;font-weight:700;color:#39d353;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">IndoBERT Sentiment Analysis</div>
-                        <div style="display:flex;align-items:center;gap:16px;">
-                            <div><div style="font-size:13px;color:#8b949e;">Sentiment Score</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{sc2};">{r['sentiment']:+.3f}</div></div>
-                            <div><div style="font-size:13px;color:#8b949e;">Euphoria Prob</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#f85149;">{r['prob']*100:.1f}%</div></div>
+                    <div style="margin-top:10px;">
+                        <div style="height:6px;background:#21262d;border-radius:3px;">
+                            <div style="height:6px;width:{min(r['tweet_count']/max(df['tweet_count'].max(),1)*100,100):.0f}%;background:linear-gradient(90deg,#a371f7,#f85149);border-radius:3px;"></div>
                         </div>
-                        <div style="margin-top:10px;font-size:13px;color:#8b949e;">
-                            IndoBERT-base | Fine-tuned on IDX social corpus
-                        </div>
+                        <div style="font-size:9px;color:#8b949e;margin-top:4px;">Relative to maximum observed window</div>
                     </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
 
-                with col_d2:
-                    st.markdown('<div class="section-title">X / TWITTER FEED</div>', unsafe_allow_html=True)
-                    feed_tweets = get_tweets(ticker, selected_date)
-                    if not feed_tweets:
-                        st.info("No text records available for this target event timestamp.")
-                    for username, text, date in feed_tweets:
-                        st.markdown(f"""
-                        <div class="tweet-card fade-in">
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                                <div style="width:36px;height:36px;border-radius:50%;
-                                    background:linear-gradient(135deg,#a371f7,#58a6ff);
-                                    display:flex;align-items:center;justify-content:center;
-                                    font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">
-                                    {username[1].upper()}</div>
-                                <div>
-                                    <div style="font-size:13px;font-weight:600;color:#c9d1d9;">{username}</div>
-                                    <div style="font-size:13px;color:#8b949e;">{date} · via X/Twitter</div>
-                                </div>
-                                <div style="margin-left:auto;font-size:14px;color:#8b949e;font-weight:700;">X</div>
-                            </div>
-                            <div style="font-size:13px;color:#c9d1d9;line-height:1.6;">{text}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                sc2 = COLORS["green"] if r["sentiment"] > 0.1 else (COLORS["red"] if r["sentiment"] < -0.1 else COLORS["yellow"])
+                st.markdown(f"""
+                <div class="drill-card fade-in" style="border-left-color:#39d353;">
+                    <div style="font-size:13px;font-weight:700;color:#39d353;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">IndoBERT Sentiment Analysis</div>
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <div><div style="font-size:13px;color:#8b949e;">Sentiment Score</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{sc2};">{r['sentiment']:+.3f}</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">Euphoria Prob</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#f85149;">{r['prob']*100:.1f}%</div></div>
+                    </div>
+                    <div style="margin-top:10px;font-size:13px;color:#8b949e;">
+                        IndoBERT-base | Fine-tuned on IDX social corpus
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
     with tab3:
         st.markdown('<div class="section-title">COMPANY PROFILE</div>', unsafe_allow_html=True)
