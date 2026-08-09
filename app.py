@@ -9,6 +9,8 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pytz
+import os
+import re
 from datetime import datetime, timedelta
 import random
 import json
@@ -251,41 +253,70 @@ def render_top_bar(screener_df: pd.DataFrame):
 # ──────────────────────────────────────────────────────────────
 # ──────────────────────────────────────────────────────────────
 # ROBUST CSV LOADER
-# Handles UTF-8 BOM, alternative delimiters (, ; \t |) and stray
-# quoting/whitespace in the header row.
+# Handles UTF-8 BOM, alternative delimiters (, ; tab |), header
+# whitespace/quoting, and column-name case/spacing variations.
 # ──────────────────────────────────────────────────────────────
+DAILY_REQUIRED = ("Date", "Ticker", "Open", "High", "Low", "Close", "Volume")
+
+CANONICAL_COLUMNS = [
+    "Date", "Ticker", "Open", "High", "Low", "Close", "Volume",
+    "EMA20", "RSI14", "tweet_count", "sentiment", "prob", "is_euphoric",
+    "Tweet_Text",
+]
+NUMERIC_COLUMNS = [
+    "Open", "High", "Low", "Close", "Volume",
+    "EMA20", "RSI14", "tweet_count", "sentiment", "prob", "is_euphoric",
+]
+
+def _norm_key(name) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
 def _read_csv(path: str, required=("Date", "Ticker")) -> pd.DataFrame:
-    import os
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"'{path}' not found. Current working directory is '{os.getcwd()}'. "
-            f"Run streamlit from the folder that contains the CSV files."
+            f"'{path}' not found. Working directory is '{os.getcwd()}'. "
+            f"Files here: {sorted(os.listdir('.'))[:20]}"
         )
-    attempts = [
-        dict(sep=None, engine="python"),
-        dict(sep=","), dict(sep=";"), dict(sep="\t"), dict(sep="|"),
-    ]
+
+    canon_lookup = {_norm_key(c): c for c in CANONICAL_COLUMNS}
     seen = None
-    for kw in attempts:
+
+    for kw in (dict(sep=None, engine="python"), dict(sep=","), dict(sep=";"),
+               dict(sep="\t"), dict(sep="|")):
         try:
             df = pd.read_csv(path, encoding="utf-8-sig", **kw)
         except Exception:
             continue
+
         df.columns = [str(c).replace("\ufeff", "").strip().strip('"').strip("'").strip()
                       for c in df.columns]
-        lower = {c.lower(): c for c in df.columns}
-        df = df.rename(columns={lower[r.lower()]: r for r in required if r.lower() in lower})
+        df = df.rename(columns={c: canon_lookup[_norm_key(c)]
+                                for c in df.columns if _norm_key(c) in canon_lookup})
         seen = list(df.columns)
+
         if all(r in df.columns for r in required):
+            for c in NUMERIC_COLUMNS:
+                if c in df.columns and not pd.api.types.is_numeric_dtype(df[c]):
+                    conv = pd.to_numeric(df[c], errors="coerce")
+                    if conv.isna().mean() > 0.5:
+                        conv = pd.to_numeric(
+                            df[c].astype(str)
+                                 .str.replace(".", "", regex=False)
+                                 .str.replace(",", ".", regex=False),
+                            errors="coerce",
+                        )
+                    df[c] = conv
             return df
+
     raise KeyError(
-        f"Could not find column(s) {list(required)} in '{path}'. Columns detected: {seen}"
+        f"'{path}' is missing {[r for r in required if not (seen and r in seen)]}. "
+        f"Columns actually detected: {seen}"
     )
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     try:
-        df = _read_csv("Streamlit_Daily_Data.csv")
+        df = _read_csv("Streamlit_Daily_Data.csv", required=DAILY_REQUIRED)
         df["Date"] = pd.to_datetime(df["Date"])
         df = df[df["Ticker"] == ticker].sort_values("Date")
         df["is_euphoric"] = df["is_euphoric"].fillna(0).astype(int)
@@ -299,7 +330,7 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_screener_df() -> pd.DataFrame:
     try:
-        df = _read_csv("Streamlit_Daily_Data.csv")
+        df = _read_csv("Streamlit_Daily_Data.csv", required=DAILY_REQUIRED)
         df["Date"] = pd.to_datetime(df["Date"])
         rows = []
         for ticker in TICKERS:
