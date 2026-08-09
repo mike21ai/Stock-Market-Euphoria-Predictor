@@ -1,7 +1,5 @@
 # app.py — Euphoria Predictor Terminal (v1.1)
 
-**Perubahan:** fitur *X / Twitter Feed* pada tab **Euphoria Drill-Through** dihapus (termasuk fungsi `get_tweets()` dan CSS `.tweet-card`). Semua fitur lain tidak diubah, dikurangi, atau dihapus.
-
 ```python
 # ============================================================
 # EUPHORIA PREDICTOR TERMINAL — app.py  (v1)
