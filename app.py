@@ -1,6 +1,3 @@
-# app.py — Euphoria Predictor Terminal (v1.1)
-
-```python
 # ============================================================
 # EUPHORIA PREDICTOR TERMINAL — app.py  (v1)
 # Single-file Streamlit Financial Dashboard
