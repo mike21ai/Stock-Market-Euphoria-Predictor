@@ -249,10 +249,43 @@ def render_top_bar(screener_df: pd.DataFrame):
 # ──────────────────────────────────────────────────────────────
 # DATA FETCHING — UPDATED
 # ──────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# ROBUST CSV LOADER
+# Handles UTF-8 BOM, alternative delimiters (, ; \t |) and stray
+# quoting/whitespace in the header row.
+# ──────────────────────────────────────────────────────────────
+def _read_csv(path: str, required=("Date", "Ticker")) -> pd.DataFrame:
+    import os
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"'{path}' not found. Current working directory is '{os.getcwd()}'. "
+            f"Run streamlit from the folder that contains the CSV files."
+        )
+    attempts = [
+        dict(sep=None, engine="python"),
+        dict(sep=","), dict(sep=";"), dict(sep="\t"), dict(sep="|"),
+    ]
+    seen = None
+    for kw in attempts:
+        try:
+            df = pd.read_csv(path, encoding="utf-8-sig", **kw)
+        except Exception:
+            continue
+        df.columns = [str(c).replace("\ufeff", "").strip().strip('"').strip("'").strip()
+                      for c in df.columns]
+        lower = {c.lower(): c for c in df.columns}
+        df = df.rename(columns={lower[r.lower()]: r for r in required if r.lower() in lower})
+        seen = list(df.columns)
+        if all(r in df.columns for r in required):
+            return df
+    raise KeyError(
+        f"Could not find column(s) {list(required)} in '{path}'. Columns detected: {seen}"
+    )
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     try:
-        df = pd.read_csv("Streamlit_Daily_Data.csv")
+        df = _read_csv("Streamlit_Daily_Data.csv")
         df["Date"] = pd.to_datetime(df["Date"])
         df = df[df["Ticker"] == ticker].sort_values("Date")
         df["is_euphoric"] = df["is_euphoric"].fillna(0).astype(int)
@@ -266,7 +299,7 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_screener_df() -> pd.DataFrame:
     try:
-        df = pd.read_csv("Streamlit_Daily_Data.csv")
+        df = _read_csv("Streamlit_Daily_Data.csv")
         df["Date"] = pd.to_datetime(df["Date"])
         rows = []
         for ticker in TICKERS:
