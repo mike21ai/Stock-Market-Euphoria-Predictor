@@ -850,7 +850,7 @@ def page_screener(screener_df: pd.DataFrame):
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">EUPHORIA PROBABILITY HEATMAP</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">EUPHORIA PROBABILITY COMPARISON</div>', unsafe_allow_html=True)
     fig_bar = go.Figure(go.Bar(
         x=screener_df["Ticker"],
         y=screener_df["EuphoriaProb"] * 100,
@@ -887,11 +887,10 @@ def page_methodology():
         <div class="ai-card fade-in" style="border-top:3px solid #58a6ff;">
             <div style="font-size:13px;font-weight:700;color:#58a6ff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">IndoBERT NLP</div>
             <p style="font-size:14px;color:#8b949e;line-height:1.8;">
-                <strong style="color:#c9d1d9;">IndoBERT</strong> (Koto et al., 2020) is a BERT-based language model
+                <strong style="color:#c9d1d9;">IndoBERT</strong> is a BERT-based language model
                 pre-trained on 220 million Indonesian words from Wikipedia, news, and social media.
-                It captures contextual nuances in Bahasa Indonesia financial discourse—FOMO sentiment,
-                stock-specific slang, euphoric signals—outperforming multilingual baselines by
-                <strong style="color:#3fb950;">+14.2% F1</strong> on IDX tweet classification.
+                It captures contextual nuances in Bahasa Indonesia financial discourse, FOMO sentiment,
+                stock-specific slang, euphoric signals.
             </p>
         </div>""", unsafe_allow_html=True)
     with col_b:
@@ -1088,11 +1087,11 @@ def page_methodology():
         <p style="font-size:14px;color:#8b949e;line-height:1.8;margin:0;">
             The attention weight chart demonstrates <strong style="color:#58a6ff;">better temporal alignment</strong>
             of our proposed model (BiLSTM + Bahdanau Attention) compared to the baseline LSTM.
-            Our model concentrates approximately 52% of the total attention weight on the most recent 5 days (Lags 0 to 4), 
+            Our model concentrates attention weight on the most recent 5 days (Lags 0 to 4), 
             precisely focusing on the short-term sentiment shocks and volume spikes that precede euphoria in retail-driven stocks.
             In contrast, the <strong style="color:#8b949e;">baseline LSTM</strong> distributes attention
             fairly evenly across all 30 historical lags, masking the critical pre-euphoria accumulation signals.
-            This superior temporal alignment directly explains the statistically significant reduction in prediction error.
+            This better temporal alignment directly explains the statistically significant reduction in prediction error.
         </p>
     </div>
     """, unsafe_allow_html=True)
