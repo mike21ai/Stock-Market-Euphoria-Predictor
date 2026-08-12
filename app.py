@@ -937,7 +937,7 @@ def page_methodology():
 
     global_perf = [
         (1,
-         "IndoBERT, LSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
+         "IndoBERT, BiLSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
          f"<strong style='color:#3fb950;'>{g_ours['R2']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['MAE']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['RMSE']:.4f}</strong>",
@@ -974,7 +974,7 @@ def page_methodology():
         <tbody>
         <tr>
             <td style="color:#8b949e;font-size:11px;">
-                IndoBERT, LSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
+                IndoBERT, BiLSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
             </td>
             <td style="color:#58a6ff;font-weight:600;">{stat_t:.4f}</td>
             <td style="color:#3fb950;font-weight:600;">{stat_p:.4e}</td>
@@ -1025,7 +1025,7 @@ def page_methodology():
                 <th rowspan="2">No</th>
                 <th rowspan="2">Ticker</th>
                 <th colspan="4" style="text-align:center;color:#8b949e;border-right:1px solid #30363d;">IndoBERT, LSTM (Yadav et al.)</th>
-                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, LSTM, Attention (Ours)</th>
+                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, BiLSTM, Attention (Ours)</th>
             </tr>
             <tr>
                 <th>R2</th><th>MAE (IDR)</th><th>RMSE (IDR)</th><th style="border-right:1px solid #30363d;">MAPE (%)</th>
