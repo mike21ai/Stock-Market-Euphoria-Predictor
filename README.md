@@ -19,7 +19,7 @@ The idea being tested is whether adding what people say on Twitter, on top of pr
 
 **Price data.** Daily OHLCV for 15 IDX tickers from 3 January 2022 to 30 December 2024, 16,395 rows. Two indicators are derived: a 20-day exponential moving average and a 14-day relative strength index.
 
-**Text data.** 8,968 Indonesian tweets mentioning those tickers over the same period. 7,672 were annotated for sentiment by 3 annotators each, giving 23,016 labels.
+**Text data.** 8,968 Indonesian tweets mentioning those tickers over the same period.
 
 **Tickers.** KARW, FORU, SRAJ, PANI, DSSA, SGER, TPIA, BRMS, MLPT, BRPT, TOBA, AUTO, IMAS, PSAB, KONI.
 
