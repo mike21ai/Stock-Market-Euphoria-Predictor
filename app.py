@@ -767,22 +767,40 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 </div>
                 """, unsafe_allow_html=True)
 
+                st.markdown(f"""
+                <div class="drill-card fade-in" style="border-left-color:#f85149;">
+                    <div style="font-size:13px;font-weight:700;color:#f85149;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Classifier Output</div>
+                    <div><div style="font-size:13px;color:#8b949e;">Euphoria Probability</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#f85149;">{r['prob']*100:.1f}%</div></div>
+                    <div style="margin-top:10px;font-size:11px;color:#8b949e;line-height:1.6;">
+                        Output of the BiLSTM classifier for this date. It reads the previous 30 days of all
+                        11 features at once, so it responds to the sequence leading up to this day rather
+                        than to any single value shown on this page.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
                 sc2 = COLORS["green"] if r["sentiment"] > 0.1 else (COLORS["red"] if r["sentiment"] < -0.1 else COLORS["yellow"])
+                sent_label_txt = ("Positive" if r["sentiment"] > 0.1
+                                  else ("Negative" if r["sentiment"] < -0.1 else "Neutral"))
+                n_tw = int(r["tweet_count"])
+                sent_note = ("No tweets were collected for this date, so the score defaults to 0.000."
+                             if n_tw == 0 else
+                             f"Average IndoBERT score across the {n_tw} tweet(s) collected on this date, "
+                             f"on a scale of -1 to +1.")
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#39d353;">
-                    <div style="font-size:13px;font-weight:700;color:#39d353;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">IndoBERT Sentiment Analysis</div>
+                    <div style="font-size:13px;font-weight:700;color:#39d353;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Same-Day Sentiment</div>
                     <div style="display:flex;align-items:center;gap:16px;">
                         <div><div style="font-size:13px;color:#8b949e;">Sentiment Score</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{sc2};">{r['sentiment']:+.3f}</div></div>
-                        <div><div style="font-size:13px;color:#8b949e;">Euphoria Prob</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#f85149;">{r['prob']*100:.1f}%</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">Label</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{sc2};">{sent_label_txt}</div></div>
                     </div>
                     <div style="margin-top:10px;font-size:11px;color:#8b949e;line-height:1.6;">
-                        Sentiment Score is the average tweet sentiment for this day, on a scale of -1 to +1.
-                        Euphoria Prob comes from the classifier, which reads 30 days of price, volume and
-                        social features together. They are placed side by side for context and are not
-                        expected to move together: a day can score a high probability on price and volume
-                        behaviour while sentiment stays flat, and the reverse happens too.
+                        {sent_note}
+                        This is one day of one feature. It is not the classifier's input on its own and
+                        will not always align with the probability above.
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
