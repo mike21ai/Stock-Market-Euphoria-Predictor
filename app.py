@@ -313,6 +313,10 @@ def build_screener_df() -> pd.DataFrame:
             prob = float(latest["prob"])
             threshold = THRESHOLDS.get(ticker, 0.65)
             status = "HYPE RISK" if prob > threshold else "NORMAL"
+
+            eval_t     = df_t[df_t["prob"].notna()]
+            n_signals  = int(eval_t["is_euphoric"].fillna(0).sum()) if "is_euphoric" in eval_t else 0
+            peak_prob  = float(eval_t["prob"].max()) if not eval_t.empty else 0.0
             
             rows.append({
                 "Ticker": ticker, 
@@ -326,6 +330,8 @@ def build_screener_df() -> pd.DataFrame:
                 "VolumeChange%": round(vol_chg_pct, 2),
                 "Sentiment": round(float(latest["sentiment"]), 3), 
                 "EuphoriaProb": round(prob, 3), 
+                "PeakProb": round(peak_prob, 3),
+                "Signals": n_signals,
                 "Status": status,
             })
         return pd.DataFrame(rows)
@@ -445,7 +451,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Chart & AI", "Euphoria Drill-Through", "Company Profile"])
+    tab1, tab2, tab3 = st.tabs(["Chart & Model Output", "Euphoria Drill-Through", "Company Profile"])
 
     with tab1:
         col_chart, col_ai = st.columns([7, 3])
@@ -559,7 +565,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             st.plotly_chart(fig, use_container_width=True)
 
         with col_ai:
-            st.markdown('<div class="section-title">AI INFERENCE ENGINE</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">MODEL OUTPUT</div>', unsafe_allow_html=True)
             prob_val = float(latest["prob"])
             p_color  = color_prob(prob_val, ticker)
 
@@ -608,7 +614,19 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown('<div class="section-title" style="margin-top:16px;">PREDICTION LOG</div>', unsafe_allow_html=True)
+            eval_df    = df[df["prob"].notna()]
+            eval_start = eval_df["Date"].min().strftime("%d %b %Y") if not eval_df.empty else "-"
+            eval_end   = eval_df["Date"].max().strftime("%d %b %Y") if not eval_df.empty else "-"
+            st.markdown('<div class="section-title" style="margin-top:16px;">MODEL OUTPUT LOG — LAST 10 TEST DAYS</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
+                Test period: <strong style="color:#c9d1d9;">{eval_start} to {eval_end}</strong>.
+                The dataset ends on 30 Dec 2024, so this is the most recent data available, not a forecast
+                of future dates. <strong style="color:#c9d1d9;">Close</strong> is the actual closing price.
+                <strong style="color:#c9d1d9;">Prob</strong> is the classifier's euphoria probability for that day.
+                <strong style="color:#c9d1d9;">Status</strong> is HYPE when that day was selected as a euphoria signal.
+            </div>
+            """, unsafe_allow_html=True)
             log_df  = df.tail(10)[["Date", "Close", "prob", "is_euphoric"]].copy()
             log_rows = ""
             for _, r in log_df.iterrows():
@@ -633,13 +651,18 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             eu_all = df[df["is_euphoric"] == 1][["Date", "Close", "prob"]].copy()
             if not eu_all.empty:
                 st.markdown('<div class="section-title" style="margin-top:16px;">EUPHORIA SIGNALS</div>', unsafe_allow_html=True)
+                st.markdown("""
+                <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
+                    All days flagged as euphoria signals in the test period.
+                    Open the Euphoria Drill-Through tab to inspect any of these dates.
+                </div>
+                """, unsafe_allow_html=True)
                 eu_rows = ""
                 for _, r in eu_all.iterrows():
                     d_str = r["Date"].strftime("%Y-%m-%d")
-                    href  = f"?page=Stock+Analysis&ticker={ticker}&drill_date={d_str}&active_tab=drill"
                     eu_rows += f"""
                     <tr>
-                        <td><a href="{href}" target="_self">{d_str}</a></td>
+                        <td style="color:#c9d1d9;">{d_str}</td>
                         <td>{r['Close']:,.0f}</td>
                         <td style="color:#f85149;">{r['prob']*100:.1f}%</td>
                     </tr>"""
@@ -833,6 +856,8 @@ def page_screener(screener_df: pd.DataFrame):
             <td style="color:{sc};">{r['Sentiment']:+.3f}</td>
             <td style="color:{ep_color};">{r['EuphoriaProb']*100:.1f}%</td>
             <td style="color:{ep_color};font-weight:600;">{r['Status']}</td>
+            <td style="color:#d29922;font-weight:600;">{int(r['Signals'])}</td>
+            <td style="color:#f85149;">{r['PeakProb']*100:.1f}%</td>
         </tr>"""
 
     st.markdown(f"""
@@ -841,17 +866,25 @@ def page_screener(screener_df: pd.DataFrame):
         <thead><tr>
             <th>Ticker</th><th>Company</th><th>Open</th><th>High</th><th>Low</th>
             <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria%</th><th>Status*</th>
+            <th>Signals</th><th>Peak Prob</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table></div>
     <div style="font-size:11px;color:#8b949e;margin-top:8px;line-height:1.6;">
-        *Status compares the predicted euphoria probability against a per-ticker alert threshold used for
-        display only. It is a dashboard reading aid, not the model's training label.
+        <strong style="color:#c9d1d9;">Euphoria%</strong> and <strong style="color:#c9d1d9;">Status</strong>
+        describe the <strong style="color:#c9d1d9;">last trading day in the dataset (30 Dec 2024)</strong>, which was
+        a calm session for all 15 stocks, so every row reads NORMAL. That is the expected result for a quiet day,
+        not an inactive model.
+        <strong style="color:#c9d1d9;">Signals</strong> counts the euphoria days each stock recorded across the whole
+        test period, and <strong style="color:#c9d1d9;">Peak Prob</strong> is its highest euphoria probability in that
+        period, so the model's activity over time stays visible.
+        <br>*Status compares the day's probability against a per-ticker alert threshold used for display only.
+        It is a dashboard reading aid, not the model's training label.
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">EUPHORIA PROBABILITY HEATMAP</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">EUPHORIA PROBABILITY — LAST DAY VS TEST-PERIOD PEAK</div>', unsafe_allow_html=True)
     fig_bar = go.Figure(go.Bar(
         x=screener_df["Ticker"],
         y=screener_df["EuphoriaProb"] * 100,
@@ -859,6 +892,15 @@ def page_screener(screener_df: pd.DataFrame):
         text=[f"{v*100:.1f}%" for v in screener_df["EuphoriaProb"]],
         textposition="outside",
         textfont=dict(size=10, family="JetBrains Mono"),
+        name="Last day (30 Dec 2024)",
+    ))
+    fig_bar.add_trace(go.Bar(
+        x=screener_df["Ticker"],
+        y=screener_df["PeakProb"] * 100,
+        marker_color="rgba(248,81,73,0.28)",
+        marker_line=dict(color="#f85149", width=1),
+        name="Test-period peak",
+        hovertemplate="%{x}: peak %{y:.1f}%<extra></extra>",
     ))
     fig_bar.update_layout(
         **PLOTLY_BASE,
@@ -867,7 +909,8 @@ def page_screener(screener_df: pd.DataFrame):
         yaxis=dict(range=[0, 110], title="Euphoria Prob (%)", gridcolor="#21262d"),
         xaxis=dict(gridcolor="#21262d"),
         bargap=0.35,
-        showlegend=False,
+        barmode="overlay",
+        showlegend=True,
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
