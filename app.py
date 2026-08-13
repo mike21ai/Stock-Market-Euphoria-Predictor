@@ -12,6 +12,8 @@ import pytz
 from datetime import datetime, timedelta
 import random
 import json
+import base64
+import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -97,11 +99,20 @@ def inject_global_css():
     }
     [data-testid="stSidebar"] .block-container { padding-top: 70px !important; }
 
-    [data-testid="stSidebar"] button[data-testid="baseButton-headerNoPadding"],
-    [data-testid="stSidebar"] [data-testid="stSidebarNavLink"] + button,
-    button[aria-label="Close sidebar"],
-    button[aria-label="Collapse sidebar"] { display: none !important; }
-    [data-testid="collapsedControl"] { display: none !important; }
+    /* The collapse control must stay visible. Hiding the reopen arrow while the
+       collapse button remains clickable leaves the sidebar permanently closed. */
+    [data-testid="collapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 10000 !important;
+    }
+    [data-testid="collapsedControl"] button {
+        background: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px !important;
+        color: #58a6ff !important;
+    }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0d1117; }
@@ -212,6 +223,26 @@ def inject_global_css():
     }
     </style>
     """, unsafe_allow_html=True)
+
+# ──────────────────────────────────────────────────────────────
+# INSTITUTION LOGOS
+# Files are optional. If a logo is missing the layout simply skips it.
+# ──────────────────────────────────────────────────────────────
+LOGO_FILES = {
+    "binus": ["Logo Binus.png", "logo_binus.png", "assets/logo_binus.png"],
+    "unpad": ["Logo Unpad.png", "logo_unpad.png", "assets/logo_unpad.png"],
+}
+
+@st.cache_data(show_spinner=False)
+def load_logo_b64(key: str) -> str:
+    for path in LOGO_FILES.get(key, []):
+        if os.path.exists(path):
+            try:
+                with open(path, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            except Exception:
+                continue
+    return ""
 
 # ──────────────────────────────────────────────────────────────
 # TOP BAR MARQUEE
@@ -947,8 +978,8 @@ def page_methodology():
         <div class="ai-card fade-in" style="border-top:3px solid #58a6ff;">
             <div style="font-size:13px;font-weight:700;color:#58a6ff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">IndoBERT NLP</div>
             <p style="font-size:14px;color:#8b949e;line-height:1.8;">
-                Sentiment is scored with <strong style="color:#c9d1d9;">mdhugol/indonesia-bert-sentiment-classification</strong>,
-                a BERT model for Indonesian text. Each tweet receives a score of
+                Sentiment is scored with <strong style="color:#c9d1d9;">IndoBERT (indobert-base-p1)</strong>,
+                fine-tuned on the SmSA Indonesian sentiment dataset. Each tweet receives a score of
                 P(positive) minus P(negative), giving a value between -1 and +1.
                 Scores are averaged per ticker per day to produce the daily sentiment feature.
                 Working in Indonesian matters here because the corpus is full of local market slang
@@ -1203,11 +1234,31 @@ def render_sidebar(qp_page: str = "", qp_ticker: str = "") -> tuple[str, str]:
             label_visibility="visible",
         )
 
-        st.markdown("""
-        <div style="position:fixed;bottom:16px;left:0;right:0;padding:0 1rem;pointer-events:none;">
-            <div style="height:1px;background:#21262d;margin-bottom:12px;"></div>
-            <div style="font-size:9px;color:#484f58;text-align:center;line-height:1.6;">
-IndoBERT + BiLSTM + Attention<br>Research prototype
+        binus_b64 = load_logo_b64("binus")
+        unpad_b64 = load_logo_b64("unpad")
+        logo_imgs = ""
+        for b64, alt in ((binus_b64, "BINUS"), (unpad_b64, "UNPAD")):
+            if b64:
+                logo_imgs += (
+                    f'<img src="data:image/png;base64,{b64}" alt="{alt}" '
+                    f'style="height:34px;width:auto;object-fit:contain;'
+                    f'background:#ffffff;border-radius:6px;padding:5px 7px;" />'
+                )
+        logo_block = (
+            f'<div style="display:flex;align-items:center;justify-content:center;'
+            f'gap:10px;margin-bottom:12px;flex-wrap:wrap;">{logo_imgs}</div>'
+            if logo_imgs else ""
+        )
+
+        st.markdown(f"""
+        <div style="margin-top:32px;">
+            <div style="height:1px;background:#21262d;margin-bottom:14px;"></div>
+            {logo_block}
+            <div style="font-size:10px;color:#8b949e;text-align:center;line-height:1.7;">
+                Developed by <strong style="color:#c9d1d9;">Michael Sanjaya</strong>
+            </div>
+            <div style="font-size:9px;color:#484f58;text-align:center;line-height:1.6;margin-top:6px;">
+                IndoBERT + BiLSTM + Attention<br>Research prototype
             </div>
         </div>
         """, unsafe_allow_html=True)
