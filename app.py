@@ -332,7 +332,6 @@ def build_screener_df() -> pd.DataFrame:
                 "Change%": round(chg_pct, 2),
                 "VolumeChange%": round(vol_chg_pct, 2),
                 "Sentiment": round(float(latest["sentiment"]), 3), 
-                "Tweets": int(latest["tweet_count"]) if not pd.isna(latest.get("tweet_count")) else 0,
                 "EuphoriaProb": round(prob, 3), 
                 "Signals": n_signals,
                 "Status": status,
@@ -448,11 +447,10 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
     with m4:
         tw_latest = int(latest["tweet_count"]) if not pd.isna(latest.get("tweet_count")) else 0
         if tw_latest == 0:
-            sc, sl = "#8b949e", "no tweets"
+            sc, sl = "#8b949e", "No data"
         else:
             sc = COLORS["green"] if sent_val > 0.05 else (COLORS["red"] if sent_val < -0.05 else COLORS["yellow"])
             sl = "Positive" if sent_val > 0.05 else ("Negative" if sent_val < -0.05 else "Neutral")
-            sl = f"{sl} ({tw_latest} tweet{'s' if tw_latest != 1 else ''})"
         st.markdown(f"""
         <div class="metric-card fade-in">
             <div class="label">Sentiment</div>
@@ -668,33 +666,28 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             """, unsafe_allow_html=True)
 
             eu_src = df[df["in_eval"]] if "in_eval" in df.columns else df
-            eu_all = eu_src[eu_src["is_euphoric"] == 1][["Date", "Close", "prob", "tweet_count"]].copy()
+            eu_all = eu_src[eu_src["is_euphoric"] == 1][["Date", "Close", "prob"]].copy()
             if not eu_all.empty:
                 st.markdown('<div class="section-title" style="margin-top:16px;">EUPHORIA SIGNALS</div>', unsafe_allow_html=True)
                 st.markdown("""
                 <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
                     Every day flagged as a euphoria signal in the held-out period.
-                    <strong style="color:#c9d1d9;">Tweets</strong> shows how many tweets were collected that day;
-                    thinly covered stocks often have none, which leaves their sentiment at 0.000.
                     Open the Euphoria Drill-Through tab to inspect any of these dates.
                 </div>
                 """, unsafe_allow_html=True)
                 eu_rows = ""
                 for _, r in eu_all.iterrows():
                     d_str = r["Date"].strftime("%Y-%m-%d")
-                    n_tw  = int(r["tweet_count"]) if not pd.isna(r.get("tweet_count")) else 0
-                    tw_c  = "#8b949e" if n_tw == 0 else "#a371f7"
                     eu_rows += f"""
                     <tr>
                         <td style="color:#c9d1d9;">{d_str}</td>
                         <td>{r['Close']:,.0f}</td>
                         <td style="color:#f85149;">{r['prob']*100:.1f}%</td>
-                        <td style="color:{tw_c};">{n_tw}</td>
                     </tr>"""
                 st.markdown(f"""
                 <div style="overflow-x:auto;max-height:200px;overflow-y:auto;">
                 <table class="styled-table">
-                    <thead><tr><th>Date</th><th>Close</th><th>Prob</th><th>Tweets</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Close</th><th>Prob</th></tr></thead>
                     <tbody>{eu_rows}</tbody>
                 </table></div>
                 """, unsafe_allow_html=True)
@@ -884,7 +877,6 @@ def page_screener(screener_df: pd.DataFrame):
             <td>{fmt_volume(r['Volume'])}</td>
             <td style="color:{chg_color};">{chg_str}</td>
             <td style="color:{sc};">{r['Sentiment']:+.3f}</td>
-            <td style="color:#8b949e;">{int(r['Tweets'])}</td>
             <td style="color:{ep_color};">{r['EuphoriaProb']*100:.1f}%</td>
         </tr>"""
 
@@ -893,7 +885,7 @@ def page_screener(screener_df: pd.DataFrame):
     <table class="styled-table">
         <thead><tr>
             <th>Ticker</th><th>Company</th><th>Open</th><th>High</th><th>Low</th>
-            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Tweets</th><th>Euphoria Prob</th>
+            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria Prob</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table></div>
@@ -901,9 +893,7 @@ def page_screener(screener_df: pd.DataFrame):
         Every row is a snapshot of <strong style="color:#c9d1d9;">{snap_date}</strong>, the final trading day in the
         dataset. <strong style="color:#c9d1d9;">Open, High, Low, Close and Volume</strong> are that day's actual values.
         <strong style="color:#c9d1d9;">Chg%</strong> is the change in closing price against the previous trading day.
-        <strong style="color:#c9d1d9;">IndoBERT</strong> is the average tweet sentiment for that day and
-        <strong style="color:#c9d1d9;">Tweets</strong> is how many tweets it was averaged from. A score of
-        0.000 with 0 tweets means no text was collected that day, not that the tweets were neutral.
+        <strong style="color:#c9d1d9;">IndoBERT</strong> is the average tweet sentiment for that day, and
         <strong style="color:#c9d1d9;">Euphoria Prob</strong> is the model's euphoria probability for that day.
         This was a calm session across all 15 stocks, so the probabilities are low. The chart below counts the
         euphoria signals each stock recorded across the whole held-out period.
