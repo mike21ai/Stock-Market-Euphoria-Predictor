@@ -376,7 +376,7 @@ PLOTLY_BASE = dict(
 # PAGE: STOCK ANALYSIS
 # ──────────────────────────────────────────────────────────────
 def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str = ""):
-    with st.spinner("Fetching real-time market and AI data..."):
+    with st.spinner("Loading market data and model outputs..."):
         df = fetch_stock_data(ticker)
 
     if df.empty:
@@ -578,23 +578,6 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             </div>
             """, unsafe_allow_html=True)
 
-            forecast_price = float(latest["close_price"])
-            forecast_delta = forecast_price - last_price
-            forecast_color = COLORS["green"] if forecast_delta >= 0 else COLORS["red"]
-            forecast_arrow = "+" if forecast_delta >= 0 else ""
-            st.markdown(f"""
-            <div class="ai-card fade-in">
-                <div style="font-size:13px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;">
-                    Next-Day Price Forecast
-                </div>
-                <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:{forecast_color};">
-                    {forecast_price:,.0f}
-                </div>
-                <div style="font-size:14px;font-family:'JetBrains Mono',monospace;color:{forecast_color};margin-top:4px;">{forecast_arrow}{forecast_delta:,.0f} vs last close</div>
-                <div style="font-size:13px;color:#8b949e;margin-top:6px;">BiLSTM Regression Head</div>
-            </div>
-            """, unsafe_allow_html=True)
-
             sent_color = COLORS["green"] if sent_val > 0.1 else (COLORS["red"] if sent_val < -0.1 else COLORS["yellow"])
             sent_label = "Bullish" if sent_val > 0.1 else ("Bearish" if sent_val < -0.1 else "Neutral")
             st.markdown(f"""
@@ -707,10 +690,16 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#d29922;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Rule-Based Euphoria Conditions</div>
+                        <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Labeling Rule Reference (3 of 4 Required)</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#d29922;">{met_count}/4 Met</div>
                     </div>
                     {cond_rows}
+                    <div style="font-size:11px;color:#8b949e;margin-top:10px;line-height:1.6;">
+                        These four conditions define the <strong style="color:#c9d1d9;">training labels</strong>
+                        (a day is labeled euphoric when at least 3 of 4 are met). The signal shown on this date
+                        comes from the <strong style="color:#c9d1d9;">classifier's predicted probability peaks</strong>,
+                        so it will not always satisfy the same conditions.
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -727,23 +716,25 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                         <div><div style="font-size:13px;color:#8b949e;">Close Price</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{r['Close']:,.0f}</div></div>
                         <div><div style="font-size:13px;color:#8b949e;">Day Change</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#f85149;">+{day_chg:.2f}%</div></div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:{"#3fb950" if day_chg >= 0 else "#f85149"};">{day_chg:+.2f}%</div></div>
                         <div><div style="font-size:13px;color:#8b949e;">5-Day Return</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#d29922;">+{five_ret:.2f}%</div></div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:{"#3fb950" if five_ret >= 0 else "#f85149"};">{five_ret:+.2f}%</div></div>
                         <div><div style="font-size:13px;color:#8b949e;">Volume</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{fmt_volume(r['Volume'])}</div></div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
+                tw_avg30 = float(r.get("tweet_avg", 0) or 0)
+                tweet_ratio = (float(r["tweet_count"]) / tw_avg30) if tw_avg30 > 0 else 0.0
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#a371f7;">
                     <div style="font-size:13px;font-weight:700;color:#a371f7;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Social Media Amplification</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div><div style="font-size:13px;color:#8b949e;">Tweet Count</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count']):,}</div></div>
-                        <div><div style="font-size:13px;color:#8b949e;">Spike vs Avg</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count'] / max(df['tweet_count'].mean(), 1)):.0f}x</div></div>
+                        <div><div style="font-size:13px;color:#8b949e;">vs 30-Day Avg</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{tweet_ratio:.2f}x</div></div>
                     </div>
                     <div style="margin-top:10px;">
                         <div style="height:6px;background:#21262d;border-radius:3px;">
@@ -796,6 +787,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 <strong style="color:#c9d1d9;">{p.get("director","")}</strong>.
             </p>
             <p style="color:#484f58;font-size:11px;margin-top:8px;">
+                Company details are static reference information entered manually and are not part of the model.
                 Data is for informational purposes only and does not constitute financial advice.
             </p>
         </div>
@@ -809,7 +801,7 @@ def page_screener(screener_df: pd.DataFrame):
     <div class="fade-in" style="margin-bottom:20px;">
         <h2 style="font-size:22px;font-weight:700;color:#c9d1d9;margin:0;">Global Market Screener</h2>
         <p style="color:#8b949e;font-size:13px;margin:4px 0 0 0;">
-            Real-time overview of 15 target Indonesian equities with AI sentiment overlay.
+            Latest evaluation-window snapshot of 15 Indonesian equities with model outputs.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -843,14 +835,18 @@ def page_screener(screener_df: pd.DataFrame):
     <table class="styled-table">
         <thead><tr>
             <th>Ticker</th><th>Company</th><th>Open</th><th>High</th><th>Low</th>
-            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria%</th><th>Status</th>
+            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria%</th><th>Status*</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table></div>
+    <div style="font-size:11px;color:#8b949e;margin-top:8px;line-height:1.6;">
+        *Status compares the predicted euphoria probability against a per-ticker alert threshold used for
+        display only. It is a dashboard reading aid, not the model's training label.
+    </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">EUPHORIA PROBABILITY COMPARISON</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">EUPHORIA PROBABILITY HEATMAP</div>', unsafe_allow_html=True)
     fig_bar = go.Figure(go.Bar(
         x=screener_df["Ticker"],
         y=screener_df["EuphoriaProb"] * 100,
@@ -887,10 +883,12 @@ def page_methodology():
         <div class="ai-card fade-in" style="border-top:3px solid #58a6ff;">
             <div style="font-size:13px;font-weight:700;color:#58a6ff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">IndoBERT NLP</div>
             <p style="font-size:14px;color:#8b949e;line-height:1.8;">
-                <strong style="color:#c9d1d9;">IndoBERT</strong> is a BERT-based language model
-                pre-trained on 220 million Indonesian words from Wikipedia, news, and social media.
-                It captures contextual nuances in Bahasa Indonesia financial discourse, FOMO sentiment,
-                stock-specific slang, euphoric signals.
+                Sentiment is scored with <strong style="color:#c9d1d9;">mdhugol/indonesia-bert-sentiment-classification</strong>,
+                a BERT model for Indonesian text. Each tweet receives a score of
+                P(positive) minus P(negative), giving a value between -1 and +1.
+                Scores are averaged per ticker per day to produce the daily sentiment feature.
+                Working in Indonesian matters here because the corpus is full of local market slang
+                that a general multilingual model handles poorly.
             </p>
         </div>""", unsafe_allow_html=True)
     with col_b:
@@ -900,8 +898,9 @@ def page_methodology():
             <p style="font-size:14px;color:#8b949e;line-height:1.8;">
                 A <strong style="color:#c9d1d9;">Bidirectional LSTM</strong> processes sequences in both forward
                 and backward temporal directions, capturing long-range momentum and mean-reversion simultaneously.
-                Inputs: 35-day lookback windows of OHLCV + sentiment embeddings.
-                Architecture: 128 units x 2 stacked BiLSTM layers with 40% dropout regularization.
+                Inputs: 30-day lookback windows of 11 features (OHLCV, RSI, price and volume change,
+                tweet count, daily sentiment, event flag).
+                Architecture: 128 hidden units x 2 stacked BiLSTM layers with 25% dropout.
             </p>
         </div>""", unsafe_allow_html=True)
     with col_c:
@@ -929,14 +928,14 @@ def page_methodology():
     stat_p = m_data["statistical_test"]["p_value"]
     ticker_perf = m_data["ticker_performance"]
     global_attn = m_data["attention_weights"]
-    baseline_weights = m_data["baseline_weights"]
+    baseline_weights = m_data.get("baseline_weights")
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     st.markdown('<div class="section-title">GLOBAL PERFORMANCE COMPARISON</div>', unsafe_allow_html=True)
 
     global_perf = [
         (1,
-         "IndoBERT, BiLSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
+         "IndoBERT, LSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
          f"<strong style='color:#3fb950;'>{g_ours['R2']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['MAE']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['RMSE']:.4f}</strong>",
@@ -973,7 +972,7 @@ def page_methodology():
         <tbody>
         <tr>
             <td style="color:#8b949e;font-size:11px;">
-                IndoBERT, BiLSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
+                IndoBERT, LSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
             </td>
             <td style="color:#58a6ff;font-weight:600;">{stat_t:.4f}</td>
             <td style="color:#3fb950;font-weight:600;">{stat_p:.4e}</td>
@@ -1024,7 +1023,7 @@ def page_methodology():
                 <th rowspan="2">No</th>
                 <th rowspan="2">Ticker</th>
                 <th colspan="4" style="text-align:center;color:#8b949e;border-right:1px solid #30363d;">IndoBERT, LSTM (Yadav et al.)</th>
-                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, BiLSTM, Attention (Ours)</th>
+                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, LSTM, Attention (Ours)</th>
             </tr>
             <tr>
                 <th>R2</th><th>MAE (IDR)</th><th>RMSE (IDR)</th><th style="border-right:1px solid #30363d;">MAPE (%)</th>
@@ -1040,7 +1039,7 @@ def page_methodology():
 
     # Both arrays are chronological (oldest to newest); reverse so Lag 0 (most recent) is on the left
     global_attn_reversed = list(reversed(global_attn))
-    y_base = list(reversed(baseline_weights))
+    y_base = list(reversed(baseline_weights)) if baseline_weights else None
 
     x_vals  = list(range(len(global_attn_reversed)))
     x_ticks = list(range(0, len(global_attn_reversed), 5))
@@ -1054,12 +1053,13 @@ def page_methodology():
         fill="tozeroy", fillcolor="rgba(88,166,255,0.07)",
         hovertemplate="Lag %{x}: <b>%{y:.4f}</b><extra>Ours</extra>",
     ))
-    fig_att.add_trace(go.Scatter(
-        x=x_vals, y=y_base,
-        name="IndoBERT, LSTM (Yadav et al. Baseline)",
-        line=dict(color="#8b949e", width=1.8, dash="dash"),
-        hovertemplate="Lag %{x}: <b>%{y:.4f}</b><extra>Baseline</extra>",
-    ))
+    if y_base is not None:
+        fig_att.add_trace(go.Scatter(
+            x=x_vals, y=y_base,
+            name="IndoBERT, LSTM (Baseline, gradient saliency)",
+            line=dict(color="#8b949e", width=1.8, dash="dash"),
+            hovertemplate="Lag %{x}: <b>%{y:.4f}</b><extra>Baseline</extra>",
+        ))
 
     fig_att.update_layout(
         **PLOTLY_BASE,
@@ -1085,13 +1085,14 @@ def page_methodology():
     <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;margin-top:8px;" class="fade-in">
         <div class="section-title">INTERPRETATION</div>
         <p style="font-size:14px;color:#8b949e;line-height:1.8;margin:0;">
-            The attention weight chart demonstrates <strong style="color:#58a6ff;">better temporal alignment</strong>
-            of our proposed model (BiLSTM + Bahdanau Attention) compared to the baseline LSTM.
-            Our model concentrates attention weight on the most recent 5 days (Lags 0 to 4), 
-            precisely focusing on the short-term sentiment shocks and volume spikes that precede euphoria in retail-driven stocks.
-            In contrast, the <strong style="color:#8b949e;">baseline LSTM</strong> distributes attention
-            fairly evenly across all 30 historical lags, masking the critical pre-euphoria accumulation signals.
-            This better temporal alignment directly explains the statistically significant reduction in prediction error.
+            The attention layer learns a weight for each of the 30 days in the input window, so we can read
+            afterwards which days the model relied on. The weights concentrate sharply on the most recent days:
+            about <strong style="color:#58a6ff;">66%</strong> of the total weight sits on Lag 0 alone and
+            roughly <strong style="color:#58a6ff;">97%</strong> falls within Lags 0 to 4.
+            This is consistent with next-day price prediction, where the latest close carries most of the signal.
+            The baseline curve is not an attention distribution. It is a gradient saliency score, which measures
+            how sensitive the baseline LSTM's output is to each input day. The two are plotted together for
+            comparison of temporal focus, but they are computed differently and are not on the same scale.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1159,7 +1160,7 @@ def main():
     active_page   = sidebar_page
     active_ticker = sidebar_ticker
 
-    with st.spinner("Fetching real-time market and AI data..."):
+    with st.spinner("Loading market data and model outputs..."):
         screener_df = build_screener_df()
 
     if not screener_df.empty:
