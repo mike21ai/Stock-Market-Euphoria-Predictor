@@ -89,7 +89,18 @@ def inject_global_css():
         background-color: #0d1117 !important;
     }
 
-    #MainMenu, header, footer { visibility: hidden; display: none !important; }
+    #MainMenu, footer { visibility: hidden; display: none !important; }
+
+    /* The sidebar expand button is a child of the header, so the header must keep
+       a real height. Forcing height:0 clips that button, which is what made the
+       sidebar impossible to reopen. Keep the header, make it see-through, and let
+       clicks fall through to the page everywhere except on its own buttons. */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        pointer-events: none !important;
+        z-index: 10001 !important;
+    }
+    header[data-testid="stHeader"] * { pointer-events: auto !important; }
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
 
@@ -99,18 +110,46 @@ def inject_global_css():
     }
     [data-testid="stSidebar"] .block-container { padding-top: 70px !important; }
 
-    /* The collapse control must stay visible. Hiding the reopen arrow while the
-       collapse button remains clickable leaves the sidebar permanently closed. */
-    [data-testid="collapsedControl"] {
-        display: block !important;
+    /* Expand control, shown when the sidebar is closed. Pinned with fixed
+       coordinates so it can never be clipped by the header or covered by the
+       marquee. Test id names differ across Streamlit versions, so all known
+       variants are targeted. */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stExpandSidebarButton"] {
+        display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
-        z-index: 10000 !important;
+        pointer-events: auto !important;
+        position: fixed !important;
+        top: 54px !important;
+        left: 10px !important;
+        z-index: 10050 !important;
     }
-    [data-testid="collapsedControl"] button {
+    /* Collapse arrow inside the open sidebar. */
+    [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 10050 !important;
+    }
+    [data-testid="collapsedControl"] button,
+    [data-testid="stSidebarCollapsedControl"] button,
+    [data-testid="stExpandSidebarButton"] button,
+    [data-testid="stSidebarCollapseButton"] button {
         background: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 6px !important;
+        color: #58a6ff !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.7) !important;
+        pointer-events: auto !important;
+    }
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="stExpandSidebarButton"] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
+        fill: #58a6ff !important;
         color: #58a6ff !important;
     }
 
@@ -198,6 +237,15 @@ def inject_global_css():
     div[data-testid="stTab"] { background: transparent !important; }
     [data-testid="stSpinner"] { color: #58a6ff !important; }
 
+    /* Never let a stray rule hide the sidebar controls again. */
+    button[aria-label*="idebar" i],
+    button[title*="idebar" i] {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
     .section-title {
         font-size: 14px; font-weight: 700; color: #58a6ff; text-transform: uppercase;
         letter-spacing: 0.12em; border-bottom: 1px solid #21262d;
@@ -222,6 +270,35 @@ def inject_global_css():
         display: none;
     }
     </style>
+    """, unsafe_allow_html=True)
+
+    # Belt and braces: Streamlit renames these test ids between versions, so a
+    # small watcher re-shows the expand control if any rule ever hides it again.
+    st.markdown("""
+    <script>
+    (function () {
+        const SELECTORS = [
+            '[data-testid="collapsedControl"]',
+            '[data-testid="stSidebarCollapsedControl"]',
+            '[data-testid="stExpandSidebarButton"]',
+            '[data-testid="stSidebarCollapseButton"]',
+            'button[aria-label*="idebar"]'
+        ];
+        function reveal() {
+            const doc = window.parent ? window.parent.document : document;
+            SELECTORS.forEach(function (sel) {
+                doc.querySelectorAll(sel).forEach(function (el) {
+                    el.style.setProperty('display', 'flex', 'important');
+                    el.style.setProperty('visibility', 'visible', 'important');
+                    el.style.setProperty('opacity', '1', 'important');
+                    el.style.setProperty('pointer-events', 'auto', 'important');
+                });
+            });
+        }
+        reveal();
+        setInterval(reveal, 1000);
+    })();
+    </script>
     """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
@@ -272,7 +349,7 @@ def render_top_bar(screener_df: pd.DataFrame):
     double_tape = "".join(items) * 2
     st.markdown(f"""
     <div style="
-        position:fixed;top:0;left:0;right:0;z-index:9999;
+        position:fixed;top:0;left:0;right:0;z-index:9000;
         background:linear-gradient(90deg,#0d1117,#161b22,#0d1117);
         border-bottom:1px solid #30363d;height:44px;
         display:flex;align-items:center;overflow:hidden;
@@ -1241,12 +1318,12 @@ def render_sidebar(qp_page: str = "", qp_ticker: str = "") -> tuple[str, str]:
             if b64:
                 logo_imgs += (
                     f'<img src="data:image/png;base64,{b64}" alt="{alt}" '
-                    f'style="height:34px;width:auto;object-fit:contain;'
-                    f'background:#ffffff;border-radius:6px;padding:5px 7px;" />'
+                    f'style="height:40px;width:auto;object-fit:contain;'
+                    f'background:transparent;" />'
                 )
         logo_block = (
             f'<div style="display:flex;align-items:center;justify-content:center;'
-            f'gap:10px;margin-bottom:12px;flex-wrap:wrap;">{logo_imgs}</div>'
+            f'gap:16px;margin-bottom:14px;flex-wrap:wrap;">{logo_imgs}</div>'
             if logo_imgs else ""
         )
 
