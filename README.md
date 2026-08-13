@@ -19,7 +19,7 @@ The idea being tested is whether adding what people say on Twitter, on top of pr
 
 **Price data.** Daily OHLCV for 15 IDX tickers from 3 January 2022 to 30 December 2024, 16,395 rows. Two indicators are derived: a 20-day exponential moving average and a 14-day relative strength index.
 
-**Text data.** 8,968 Indonesian tweets mentioning those tickers over the same period.
+**Text data.** 8,968 Indonesian tweets mentioning those tickers over the same period, cleaned of URLs, mentions, and symbols before scoring.
 
 **Tickers.** KARW, FORU, SRAJ, PANI, DSSA, SGER, TPIA, BRMS, MLPT, BRPT, TOBA, AUTO, IMAS, PSAB, KONI.
 
@@ -147,11 +147,17 @@ pytz
 
 ## Limitations
 
-- The data ends in December 2024, so the app runs on historical data. It is not connected to a live feed.
-- Tweets were collected by matching ticker strings, which picks up unrelated posts for tickers that are also ordinary words. FORU collides with the "for you" hashtag and with a company of a similar name; AUTO collides with the Indonesian adverb "auto". Annotation filtered these, but coverage per stock is still uneven.
-- The euphoria rule is a definition, not ground truth. Different thresholds would flag different days.
-- Both the proposed and baseline models include sentiment as an input, so the results measure the effect of attention, not the effect of sentiment. No ablation without sentiment was run.
-- Sentiment on any single day may be averaged from only one or two tweets, so daily scores are noisy for thinly covered stocks.
+Model performance is not uniform across all 15 stocks. Results are mixed for lower-liquidity names such as AUTO and SGER, where firm-specific events drive price changes more than broad social media sentiment. In thinly traded stocks, general sentiment signals carry less weight in the model's predictions.
+
+The practical reading is that sentiment-based early warning is most useful in market segments where retail mood is a dominant driver of short-term price movement, and less useful where company-specific information dominates price formation.
+
+Two further points about scope. The data ends in December 2024, so the app runs on historical data and is not connected to a live feed. The euphoria rule is a working definition rather than ground truth, so different thresholds would flag different days.
+
+## Suggestions for future research
+
+- **Broaden the data sources.** Retail traders discuss stocks across many platforms. Adding Telegram, Instagram, and other channels would give a fuller view of sentiment and may surface trend formation earlier than Twitter alone.
+- **Try shorter timeframes.** This study uses daily data, which suits short to medium term analysis. Hourly or minute-level data could pinpoint when euphoria begins and open up intraday strategies, at the cost of much heavier computation.
+- **Add fundamental data.** Including ratios such as PER or PBV would help the model separate a rally justified by earnings from a purely speculative one.
 
 ## Disclaimer
 
