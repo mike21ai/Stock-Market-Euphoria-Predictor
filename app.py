@@ -1,5 +1,5 @@
 # ============================================================
-# EUPHORIA PREDICTOR TERMINAL — app.py  (v1)
+# EUPHORIA PREDICTOR TERMINAL - app.py
 # Single-file Streamlit Financial Dashboard
 # ============================================================
 
@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────────────────────
-# CONSTANTS — 15 correct tickers
+# CONSTANTS - 15 tickers
 # ──────────────────────────────────────────────────────────────
 TICKERS = [
     "KARW", "FORU", "SRAJ", "PANI", "DSSA",
@@ -271,7 +271,7 @@ def render_top_bar(screener_df: pd.DataFrame):
     """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# DATA FETCHING — UPDATED
+# DATA FETCHING
 # ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
@@ -316,7 +316,6 @@ def build_screener_df() -> pd.DataFrame:
 
             eval_t     = df_t[df_t["prob"].notna()]
             n_signals  = int(eval_t["is_euphoric"].fillna(0).sum()) if "is_euphoric" in eval_t else 0
-            peak_prob  = float(eval_t["prob"].max()) if not eval_t.empty else 0.0
             
             rows.append({
                 "Ticker": ticker, 
@@ -330,9 +329,11 @@ def build_screener_df() -> pd.DataFrame:
                 "VolumeChange%": round(vol_chg_pct, 2),
                 "Sentiment": round(float(latest["sentiment"]), 3), 
                 "EuphoriaProb": round(prob, 3), 
-                "PeakProb": round(peak_prob, 3),
                 "Signals": n_signals,
                 "Status": status,
+                "SnapDate": latest["Date"].strftime("%d %b %Y"),
+                "EvalSpan": (f'{eval_t["Date"].min().strftime("%d %b %Y")} to {eval_t["Date"].max().strftime("%d %b %Y")}'
+                             if not eval_t.empty else "the held-out period"),
             })
         return pd.DataFrame(rows)
     except Exception as e:
@@ -340,7 +341,7 @@ def build_screener_df() -> pd.DataFrame:
         return pd.DataFrame()
 
 # ──────────────────────────────────────────────────────────────
-# HELPERS — UPDATED
+# HELPERS
 # ──────────────────────────────────────────────────────────────
 def fmt_volume(v: float) -> str:
     if v >= 1e9: return f"{v/1e9:.2f}B"
@@ -617,33 +618,35 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             eval_df    = df[df["prob"].notna()]
             eval_start = eval_df["Date"].min().strftime("%d %b %Y") if not eval_df.empty else "-"
             eval_end   = eval_df["Date"].max().strftime("%d %b %Y") if not eval_df.empty else "-"
-            st.markdown('<div class="section-title" style="margin-top:16px;">MODEL OUTPUT LOG — LAST 10 TEST DAYS</div>', unsafe_allow_html=True)
+            hist_start = df["Date"].min().strftime("%d %b %Y")
+            st.markdown('<div class="section-title" style="margin-top:16px;">DAILY MODEL OUTPUT (10 MOST RECENT DAYS)</div>', unsafe_allow_html=True)
             st.markdown(f"""
             <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
-                Test period: <strong style="color:#c9d1d9;">{eval_start} to {eval_end}</strong>.
-                The dataset ends on 30 Dec 2024, so this is the most recent data available, not a forecast
-                of future dates. <strong style="color:#c9d1d9;">Close</strong> is the actual closing price.
-                <strong style="color:#c9d1d9;">Prob</strong> is the classifier's euphoria probability for that day.
-                <strong style="color:#c9d1d9;">Status</strong> is HYPE when that day was selected as a euphoria signal.
+                Price history runs from <strong style="color:#c9d1d9;">{hist_start}</strong> to
+                <strong style="color:#c9d1d9;">{eval_end}</strong>. The data is split by time, with the earlier
+                80 percent used to fit the model and the later 20 percent
+                (<strong style="color:#c9d1d9;">{eval_start} to {eval_end}</strong>) held out for evaluation.
+                The model produces an output for every held-out day; this table shows only the 10 most recent
+                of them so the panel stays readable. The full list of flagged days is in Euphoria Signals below.
+                Nothing runs past {eval_end} because the dataset ends there.
+                <strong style="color:#c9d1d9;">Close</strong> is the actual closing price and
+                <strong style="color:#c9d1d9;">Prob</strong> is the model's euphoria probability for that day.
             </div>
             """, unsafe_allow_html=True)
-            log_df  = df.tail(10)[["Date", "Close", "prob", "is_euphoric"]].copy()
+            log_df  = df.tail(10)[["Date", "Close", "prob"]].copy()
             log_rows = ""
             for _, r in log_df.iterrows():
                 pc  = color_prob(r["prob"], ticker)
-                sts = "HYPE" if r["is_euphoric"] else "NORMAL"
-                sc2 = "#f85149" if r["is_euphoric"] else "#3fb950"
                 log_rows += f"""
                 <tr>
                     <td style="color:#8b949e;">{r['Date'].strftime('%d %b %y')}</td>
                     <td>{r['Close']:,.0f}</td>
                     <td style="color:{pc};">{r['prob']*100:.1f}%</td>
-                    <td style="color:{sc2};font-weight:600;">{sts}</td>
                 </tr>"""
             st.markdown(f"""
             <div style="overflow-x:auto;max-height:240px;overflow-y:auto;">
             <table class="styled-table">
-                <thead><tr><th>Date</th><th>Close</th><th>Prob</th><th>Status</th></tr></thead>
+                <thead><tr><th>Date</th><th>Close</th><th>Prob</th></tr></thead>
                 <tbody>{log_rows}</tbody>
             </table></div>
             """, unsafe_allow_html=True)
@@ -653,7 +656,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 st.markdown('<div class="section-title" style="margin-top:16px;">EUPHORIA SIGNALS</div>', unsafe_allow_html=True)
                 st.markdown("""
                 <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
-                    All days flagged as euphoria signals in the test period.
+                    Every day flagged as a euphoria signal in the held-out period.
                     Open the Euphoria Drill-Through tab to inspect any of these dates.
                 </div>
                 """, unsafe_allow_html=True)
@@ -723,7 +726,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 )
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#d29922;">
-                    <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Market Context vs 30-Day Baseline</div>
+                    <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Market Context vs 30-Day Average</div>
                     <div style="font-size:11px;color:#8b949e;margin-bottom:8px;">
                         How this day compares to its own trailing 30-day average.
                     </div>
@@ -739,36 +742,15 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
 
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#f85149;">
-                    <div style="font-size:13px;font-weight:700;color:#f85149;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Price / Volume Explosion</div>
+                    <div style="font-size:13px;font-weight:700;color:#f85149;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Price Movement</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div><div style="font-size:13px;color:#8b949e;">Close Price</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{r['Close']:,.0f}</div></div>
                         <div><div style="font-size:13px;color:#8b949e;">Day Change</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:{"#3fb950" if day_chg >= 0 else "#f85149"};">{day_chg:+.2f}%</div></div>
                         <div><div style="font-size:13px;color:#8b949e;">5-Day Return</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:{"#3fb950" if five_ret >= 0 else "#f85149"};">{five_ret:+.2f}%</div></div>
-                        <div><div style="font-size:13px;color:#8b949e;">Volume</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;">{fmt_volume(r['Volume'])}</div></div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                tw_avg30 = float(r.get("tweet_avg", 0) or 0)
-                tweet_ratio = (float(r["tweet_count"]) / tw_avg30) if tw_avg30 > 0 else 0.0
-                st.markdown(f"""
-                <div class="drill-card fade-in" style="border-left-color:#a371f7;">
-                    <div style="font-size:13px;font-weight:700;color:#a371f7;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Social Media Amplification</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div><div style="font-size:13px;color:#8b949e;">Tweet Count</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{int(r['tweet_count']):,}</div></div>
-                        <div><div style="font-size:13px;color:#8b949e;">vs 30-Day Avg</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a371f7;">{tweet_ratio:.2f}x</div></div>
-                    </div>
-                    <div style="margin-top:10px;">
-                        <div style="height:6px;background:#21262d;border-radius:3px;">
-                            <div style="height:6px;width:{min(r['tweet_count']/max(df['tweet_count'].max(),1)*100,100):.0f}%;background:linear-gradient(90deg,#a371f7,#f85149);border-radius:3px;"></div>
-                        </div>
-                        <div style="font-size:9px;color:#8b949e;margin-top:4px;">Relative to maximum observed window</div>
+                    <div style="font-size:11px;color:#8b949e;margin-top:10px;">
+                        Change against the previous trading day and against five trading days earlier.
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -834,6 +816,9 @@ def page_screener(screener_df: pd.DataFrame):
     </div>
     """, unsafe_allow_html=True)
 
+    total_signals = int(screener_df["Signals"].sum()) if "Signals" in screener_df.columns else 0
+    eval_span     = screener_df["EvalSpan"].iloc[0] if "EvalSpan" in screener_df.columns and not screener_df.empty else "the held-out period"
+    snap_date = screener_df["SnapDate"].iloc[0] if "SnapDate" in screener_df.columns and not screener_df.empty else "the final trading day"
     rows_html = ""
     for _, r in screener_df.iterrows():
         t         = r["Ticker"]
@@ -855,9 +840,6 @@ def page_screener(screener_df: pd.DataFrame):
             <td style="color:{chg_color};">{chg_str}</td>
             <td style="color:{sc};">{r['Sentiment']:+.3f}</td>
             <td style="color:{ep_color};">{r['EuphoriaProb']*100:.1f}%</td>
-            <td style="color:{ep_color};font-weight:600;">{r['Status']}</td>
-            <td style="color:#d29922;font-weight:600;">{int(r['Signals'])}</td>
-            <td style="color:#f85149;">{r['PeakProb']*100:.1f}%</td>
         </tr>"""
 
     st.markdown(f"""
@@ -865,57 +847,53 @@ def page_screener(screener_df: pd.DataFrame):
     <table class="styled-table">
         <thead><tr>
             <th>Ticker</th><th>Company</th><th>Open</th><th>High</th><th>Low</th>
-            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria%</th><th>Status*</th>
-            <th>Signals</th><th>Peak Prob</th>
+            <th>Close</th><th>Volume</th><th>Chg%</th><th>IndoBERT</th><th>Euphoria Prob</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table></div>
     <div style="font-size:11px;color:#8b949e;margin-top:8px;line-height:1.6;">
-        <strong style="color:#c9d1d9;">Euphoria%</strong> and <strong style="color:#c9d1d9;">Status</strong>
-        describe the <strong style="color:#c9d1d9;">last trading day in the dataset (30 Dec 2024)</strong>, which was
-        a calm session for all 15 stocks, so every row reads NORMAL. That is the expected result for a quiet day,
-        not an inactive model.
-        <strong style="color:#c9d1d9;">Signals</strong> counts the euphoria days each stock recorded across the whole
-        test period, and <strong style="color:#c9d1d9;">Peak Prob</strong> is its highest euphoria probability in that
-        period, so the model's activity over time stays visible.
-        <br>*Status compares the day's probability against a per-ticker alert threshold used for display only.
-        It is a dashboard reading aid, not the model's training label.
+        Every row is a snapshot of <strong style="color:#c9d1d9;">{snap_date}</strong>, the final trading day in the
+        dataset. <strong style="color:#c9d1d9;">Open, High, Low, Close and Volume</strong> are that day's actual values.
+        <strong style="color:#c9d1d9;">Chg%</strong> is the change in closing price against the previous trading day.
+        <strong style="color:#c9d1d9;">IndoBERT</strong> is the average tweet sentiment for that day, and
+        <strong style="color:#c9d1d9;">Euphoria Prob</strong> is the model's euphoria probability for that day.
+        This was a calm session across all 15 stocks, so the probabilities are low. The chart below counts the
+        euphoria signals each stock recorded across the whole held-out period.
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">EUPHORIA PROBABILITY — LAST DAY VS TEST-PERIOD PEAK</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">EUPHORIA SIGNALS PER STOCK</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="font-size:11px;color:#8b949e;margin:-6px 0 10px 0;line-height:1.6;">
+        Number of days each stock was flagged as a euphoria signal across the held-out period
+        ({eval_span}). Totals {total_signals} signals across all 15 stocks.
+    </div>
+    """, unsafe_allow_html=True)
+    sig_df  = screener_df.sort_values("Signals", ascending=False)
+    max_sig = int(sig_df["Signals"].max()) if not sig_df.empty else 1
     fig_bar = go.Figure(go.Bar(
-        x=screener_df["Ticker"],
-        y=screener_df["EuphoriaProb"] * 100,
-        marker_color=["#f85149" if v > THRESHOLDS.get(tk, 0.65) else ("#d29922" if v > THRESHOLDS.get(tk, 0.65) * 0.6 else "#3fb950") for tk, v in zip(screener_df["Ticker"], screener_df["EuphoriaProb"])],
-        text=[f"{v*100:.1f}%" for v in screener_df["EuphoriaProb"]],
+        x=sig_df["Ticker"],
+        y=sig_df["Signals"],
+        marker_color="#d29922",
+        text=[str(int(v)) for v in sig_df["Signals"]],
         textposition="outside",
-        textfont=dict(size=10, family="JetBrains Mono"),
-        name="Last day (30 Dec 2024)",
-    ))
-    fig_bar.add_trace(go.Bar(
-        x=screener_df["Ticker"],
-        y=screener_df["PeakProb"] * 100,
-        marker_color="rgba(248,81,73,0.28)",
-        marker_line=dict(color="#f85149", width=1),
-        name="Test-period peak",
-        hovertemplate="%{x}: peak %{y:.1f}%<extra></extra>",
+        textfont=dict(size=11, family="JetBrains Mono"),
+        hovertemplate="%{x}: %{y} signal days<extra></extra>",
     ))
     fig_bar.update_layout(
         **PLOTLY_BASE,
-        hovermode="x unified",
         height=280,
-        yaxis=dict(range=[0, 110], title="Euphoria Prob (%)", gridcolor="#21262d"),
+        yaxis=dict(range=[0, max_sig + 2], title="Signal days", gridcolor="#21262d",
+                   dtick=1 if max_sig <= 10 else 2),
         xaxis=dict(gridcolor="#21262d"),
         bargap=0.35,
-        barmode="overlay",
-        showlegend=True,
+        showlegend=False,
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
-# PAGE: METHODOLOGY — UPDATED
+# PAGE: METHODOLOGY
 # ──────────────────────────────────────────────────────────────
 def page_methodology():
     st.markdown("""
@@ -959,7 +937,7 @@ def page_methodology():
                 The <strong style="color:#c9d1d9;">Bahdanau (Additive) Attention</strong> mechanism enables the model
                 to dynamically focus on the most relevant timesteps rather than compressing all history into one vector.
                 This produces interpretable <em>attention weight distributions</em> showing which historical days drove
-                the euphoria prediction—critical for risk management explainability.
+                the euphoria prediction, which matters for explaining the model's decisions.
             </p>
         </div>""", unsafe_allow_html=True)
 
@@ -1045,9 +1023,11 @@ def page_methodology():
         rmse_o = row.get("RMSE_prop", row.get("rmse_prop", 0.0))
         mape_o = row.get("MAPE_prop", row.get("mape_prop", 0.0))
 
-        def better(a, b, higher=True):
+        def better(a, b, higher=True, suffix=""):
             is_better = a > b if higher else a < b
-            return f"<strong style='color:#3fb950;'>{a:.3f}</strong>" if is_better else f"{a:.3f}"
+            if is_better:
+                return f"<strong style='color:#3fb950;'>{a:,.3f}{suffix}</strong>"
+            return f"{a:,.3f}{suffix}"
 
         pt_rows += f"""
         <tr>
@@ -1060,7 +1040,7 @@ def page_methodology():
             <td>{better(r2_o, r2_y, higher=True)}</td>
             <td>{better(mae_o, mae_y, higher=False)}</td>
             <td>{better(rmse_o, rmse_y, higher=False)}</td>
-            <td>{better(mape_o, mape_y, higher=False)}%</td>
+            <td>{better(mape_o, mape_y, higher=False, suffix="%")}</td>
         </tr>"""
 
     st.markdown(f"""
@@ -1080,10 +1060,14 @@ def page_methodology():
         </thead>
         <tbody>{pt_rows}</tbody>
     </table></div>
+    <div style="font-size:11px;color:#8b949e;margin-top:8px;line-height:1.6;">
+        Values in <strong style="color:#3fb950;">green</strong> mark where the proposed model performs better than
+        the baseline on that metric for that stock. Higher is better for R2; lower is better for MAE, RMSE and MAPE.
+    </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">BETTER TEMPORAL ALIGNMENT — ATTENTION WEIGHTS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">TEMPORAL ALIGNMENT OF ATTENTION WEIGHTS</div>', unsafe_allow_html=True)
 
     # Both arrays are chronological (oldest to newest); reverse so Lag 0 (most recent) is on the left
     global_attn_reversed = list(reversed(global_attn))
