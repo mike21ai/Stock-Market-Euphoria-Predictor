@@ -219,9 +219,10 @@ def inject_global_css():
 def render_top_bar(screener_df: pd.DataFrame):
     wib = pytz.timezone("Asia/Jakarta")
     now_wib = datetime.now(wib)
-    status_label = "HISTORICAL RUN"
+    status_label = "HISTORICAL DATA"
     dot_color = "#58a6ff"
-    time_str = "Data Cut-Off 2024"
+    cut_off  = screener_df["SnapDate"].iloc[0] if "SnapDate" in screener_df.columns and not screener_df.empty else ""
+    time_str = f"Data up to {cut_off}" if cut_off else "Historical dataset"
 
     items = []
     for _, row in screener_df.iterrows():
@@ -259,7 +260,7 @@ def render_top_bar(screener_df: pd.DataFrame):
             background:#0d1117;
         ">
             <div style="display:flex;align-items:center;gap:7px;">
-                <div class="pulse" style="
+                <div style="
                     width:8px;height:8px;border-radius:50%;
                     background:{dot_color};box-shadow:0 0 6px {dot_color};
                 "></div>
@@ -283,6 +284,9 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
         })
         df["Date"] = pd.to_datetime(df["Date"])
         df = df[df["Ticker"] == ticker].sort_values("Date")
+        # A model output only exists for the held-out split. Record that mask now:
+        # filling NaN below would otherwise make every row look evaluated.
+        df["in_eval"] = df["prob"].notna()
         df["is_euphoric"] = df["is_euphoric"].fillna(0).astype(int)
         df["prob"] = df["prob"].fillna(0.0).astype(float)
         df["sentiment"] = df["sentiment"].fillna(0.0).astype(float)
@@ -420,16 +424,16 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
     with m1:
         st.markdown(f"""
         <div class="metric-card fade-in">
-            <div class="label">Last Price</div>
+            <div class="label">Latest Close</div>
             <div class="value" style="color:#c9d1d9;">{last_price:,.0f}</div>
             <div class="sub" style="color:{chg_color};">{chg_arrow}{chg_abs:,.0f} ({chg_pct:.2f}%)</div>
         </div>""", unsafe_allow_html=True)
     with m2:
         st.markdown(f"""
         <div class="metric-card fade-in">
-            <div class="label">24h Volume</div>
+            <div class="label">Volume</div>
             <div class="value">{fmt_volume(latest["Volume"])}</div>
-            <div class="sub" style="color:#8b949e;">shares traded</div>
+            <div class="sub" style="color:#8b949e;">shares, latest day</div>
         </div>""", unsafe_allow_html=True)
     with m3:
         rc = COLORS["red"] if rsi_val > 70 else (COLORS["cyan"] if rsi_val < 30 else COLORS["text"])
@@ -581,7 +585,13 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 <div style="height:4px;background:#21262d;border-radius:2px;margin-top:10px;">
                     <div style="height:4px;width:{prob_val*100:.0f}%;background:{p_color};border-radius:2px;"></div>
                 </div>
-                <div style="font-size:13px;color:#8b949e;margin-top:6px;">BiLSTM + Bahdanau Attention</div>
+                <div style="font-size:13px;color:#8b949e;margin-top:6px;">Euphoria classifier, most recent day in the dataset</div>
+                <div style="font-size:11px;color:#8b949e;margin-top:8px;line-height:1.6;">
+                    Produced by the euphoria classifier, which reads the previous 30 days of 11 features
+                    (open, high, low, close, volume, RSI, price change, volume change, tweet count,
+                    daily sentiment, event flag). Sentiment is one input among many, so this value does
+                    not follow the IndoBERT score on its own.
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -600,7 +610,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                         background:rgba(88,166,255,0.1);border:1px solid {sent_color}44;
                         border-radius:4px;padding:2px 8px;">{sent_label}</span>
                 </div>
-                <div style="font-size:13px;color:#8b949e;margin-top:6px;">BERT-base | Fine-tuned IDX corpus</div>
+                <div style="font-size:13px;color:#8b949e;margin-top:6px;">Average tweet sentiment, most recent day in the dataset</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -609,13 +619,13 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 <div class="euphoria-banner fade-in">
                     <div class="pulse" style="width:10px;height:10px;border-radius:50%;background:#f85149;flex-shrink:0;"></div>
                     <div>
-                        <div style="font-size:11px;font-weight:700;color:#f85149;">EUPHORIA ALERT</div>
-                        <div style="font-size:13px;color:#8b949e;">Latest day shows abnormal activity. Exercise caution.</div>
+                        <div style="font-size:11px;font-weight:700;color:#f85149;">EUPHORIA SIGNAL</div>
+                        <div style="font-size:13px;color:#8b949e;">The most recent day in the dataset was flagged as a euphoria signal.</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            eval_df    = df[df["prob"].notna()]
+            eval_df    = df[df["in_eval"]] if "in_eval" in df.columns else df
             eval_start = eval_df["Date"].min().strftime("%d %b %Y") if not eval_df.empty else "-"
             eval_end   = eval_df["Date"].max().strftime("%d %b %Y") if not eval_df.empty else "-"
             hist_start = df["Date"].min().strftime("%d %b %Y")
@@ -625,7 +635,7 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 Price history runs from <strong style="color:#c9d1d9;">{hist_start}</strong> to
                 <strong style="color:#c9d1d9;">{eval_end}</strong>. The data is split by time, with the earlier
                 80 percent used to fit the model and the later 20 percent
-                (<strong style="color:#c9d1d9;">{eval_start} to {eval_end}</strong>) held out for evaluation.
+                (<strong style="color:#c9d1d9;">{eval_start} to {eval_end}</strong>) held out for testing.
                 The model produces an output for every held-out day; this table shows only the 10 most recent
                 of them so the panel stays readable. The full list of flagged days is in Euphoria Signals below.
                 Nothing runs past {eval_end} because the dataset ends there.
@@ -651,7 +661,8 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             </table></div>
             """, unsafe_allow_html=True)
 
-            eu_all = df[df["is_euphoric"] == 1][["Date", "Close", "prob"]].copy()
+            eu_src = df[df["in_eval"]] if "in_eval" in df.columns else df
+            eu_all = eu_src[eu_src["is_euphoric"] == 1][["Date", "Close", "prob"]].copy()
             if not eu_all.empty:
                 st.markdown('<div class="section-title" style="margin-top:16px;">EUPHORIA SIGNALS</div>', unsafe_allow_html=True)
                 st.markdown("""
@@ -678,7 +689,8 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                 """, unsafe_allow_html=True)
 
     with tab2:
-        eu_dates = df[df["is_euphoric"] == 1]["Date"].dt.strftime("%Y-%m-%d").tolist()
+        drill_src = df[df["in_eval"]] if "in_eval" in df.columns else df
+        eu_dates = drill_src[drill_src["is_euphoric"] == 1]["Date"].dt.strftime("%Y-%m-%d").tolist()
         if not eu_dates:
             st.info("No euphoria events detected for this ticker in the evaluation set.")
         else:
@@ -765,8 +777,12 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
                         <div><div style="font-size:13px;color:#8b949e;">Euphoria Prob</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:#f85149;">{r['prob']*100:.1f}%</div></div>
                     </div>
-                    <div style="margin-top:10px;font-size:13px;color:#8b949e;">
-                        IndoBERT-base | Fine-tuned on IDX social corpus
+                    <div style="margin-top:10px;font-size:11px;color:#8b949e;line-height:1.6;">
+                        Sentiment Score is the average tweet sentiment for this day, on a scale of -1 to +1.
+                        Euphoria Prob comes from the classifier, which reads 30 days of price, volume and
+                        social features together. They are placed side by side for context and are not
+                        expected to move together: a day can score a high probability on price and volume
+                        behaviour while sentiment stays flat, and the reverse happens too.
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1169,7 +1185,7 @@ def render_sidebar(qp_page: str = "", qp_ticker: str = "") -> tuple[str, str]:
         <div style="position:fixed;bottom:16px;left:0;right:0;padding:0 1rem;pointer-events:none;">
             <div style="height:1px;background:#21262d;margin-bottom:12px;"></div>
             <div style="font-size:9px;color:#484f58;text-align:center;line-height:1.6;">
-                v1 build 2026<br>BiLSTM IndoBERT Engine
+IndoBERT + BiLSTM + Attention<br>Research prototype
             </div>
         </div>
         """, unsafe_allow_html=True)
