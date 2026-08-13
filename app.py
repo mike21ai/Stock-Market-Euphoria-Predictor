@@ -664,42 +664,47 @@ def page_stock_analysis(ticker: str, screener_df: pd.DataFrame, drill_date: str 
             else:
                 r = row.iloc[0]
                 st.markdown('<div class="section-title">EVENT ANALYSIS</div>', unsafe_allow_html=True)
-                price_ok = bool(r["Close"] >= r["price_avg"]) if "price_avg" in r else False
-                vol_ok   = bool(r["Volume"] >= r["vol_avg"]) if "vol_avg" in r else False
-                sent_ok  = bool(r["sentiment"] >= 0.50)
-                tweet_ok = bool(r["tweet_count"] >= r["tweet_avg"]) if "tweet_avg" in r else False
-                conditions = [
-                    ("Close Price >= 30-Day Avg", price_ok, f"{r['Close']:,.0f} / {r.get('price_avg', 0):,.0f}"),
-                    ("Volume >= 30-Day Avg", vol_ok, f"{fmt_volume(r['Volume'])} / {fmt_volume(r.get('vol_avg', 0))}"),
-                    ("IndoBERT Sentiment >= 0.50", sent_ok, f"{r['sentiment']:.3f}"),
-                    ("Tweet Count >= 30-Day Avg", tweet_ok, f"{int(r['tweet_count'])} / {r.get('tweet_avg', 0):.1f}"),
-                ]
-                met_count = sum(1 for _, ok, _ in conditions if ok)
-                cond_rows = ""
-                for label, ok, detail in conditions:
-                    vc = "#3fb950" if ok else "#f85149"
-                    vt = "YES" if ok else "NO"
-                    cond_rows += (
-                        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #21262d;">'
+
+                def _ratio_row(label, value_str, avg_str, ratio):
+                    if ratio is None:
+                        bar_pct, rc = 0, "#8b949e"
+                        ratio_str = "n/a"
+                    else:
+                        bar_pct = min(ratio / 2 * 100, 100)
+                        rc = "#3fb950" if ratio >= 1 else "#8b949e"
+                        ratio_str = f"{ratio:.2f}x"
+                    return (
+                        '<div style="padding:10px 0;border-bottom:1px solid #21262d;">'
+                        '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
                         f'<div style="font-size:14px;color:#c9d1d9;">{label}</div>'
                         '<div style="text-align:right;">'
-                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#8b949e;margin-right:10px;">{detail}</span>'
-                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:700;color:{vc};">{vt}</span>'
+                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;color:#c9d1d9;">{value_str}</span>'
+                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#8b949e;"> vs {avg_str}</span>'
+                        f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:700;color:{rc};margin-left:10px;">{ratio_str}</span>'
+                        '</div></div>'
+                        '<div style="height:4px;background:#21262d;border-radius:2px;margin-top:6px;">'
+                        f'<div style="height:4px;width:{bar_pct:.0f}%;background:{rc};border-radius:2px;"></div>'
                         '</div></div>'
                     )
+
+                p_avg  = float(r.get("price_avg", 0) or 0)
+                v_avg  = float(r.get("vol_avg", 0) or 0)
+                t_avg  = float(r.get("tweet_avg", 0) or 0)
+                ctx_rows = (
+                    _ratio_row("Close Price", f"{r['Close']:,.0f}", f"{p_avg:,.0f}",
+                               (float(r["Close"]) / p_avg) if p_avg > 0 else None)
+                    + _ratio_row("Volume", fmt_volume(r["Volume"]), fmt_volume(v_avg),
+                                 (float(r["Volume"]) / v_avg) if v_avg > 0 else None)
+                    + _ratio_row("Tweet Count", f"{int(r['tweet_count'])}", f"{t_avg:.1f}",
+                                 (float(r["tweet_count"]) / t_avg) if t_avg > 0 else None)
+                )
                 st.markdown(f"""
                 <div class="drill-card fade-in" style="border-left-color:#d29922;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;">Labeling Rule Reference (3 of 4 Required)</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#d29922;">{met_count}/4 Met</div>
+                    <div style="font-size:13px;font-weight:700;color:#d29922;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Market Context vs 30-Day Baseline</div>
+                    <div style="font-size:11px;color:#8b949e;margin-bottom:8px;">
+                        How this day compares to its own trailing 30-day average.
                     </div>
-                    {cond_rows}
-                    <div style="font-size:11px;color:#8b949e;margin-top:10px;line-height:1.6;">
-                        These four conditions define the <strong style="color:#c9d1d9;">training labels</strong>
-                        (a day is labeled euphoric when at least 3 of 4 are met). The signal shown on this date
-                        comes from the <strong style="color:#c9d1d9;">classifier's predicted probability peaks</strong>,
-                        so it will not always satisfy the same conditions.
-                    </div>
+                    {ctx_rows}
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -935,7 +940,7 @@ def page_methodology():
 
     global_perf = [
         (1,
-         "IndoBERT, LSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
+         "IndoBERT, BiLSTM, Attention<br><span style='color:#8b949e;font-size:13px;'>(Ours)</span>",
          f"<strong style='color:#3fb950;'>{g_ours['R2']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['MAE']:.4f}</strong>",
          f"<strong style='color:#3fb950;'>{g_ours['RMSE']:.4f}</strong>",
@@ -972,7 +977,7 @@ def page_methodology():
         <tbody>
         <tr>
             <td style="color:#8b949e;font-size:11px;">
-                IndoBERT, LSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
+                IndoBERT, BiLSTM, Attention (Ours)<br>compared to<br>IndoBERT, LSTM (Yadav et al.)
             </td>
             <td style="color:#58a6ff;font-weight:600;">{stat_t:.4f}</td>
             <td style="color:#3fb950;font-weight:600;">{stat_p:.4e}</td>
@@ -1023,7 +1028,7 @@ def page_methodology():
                 <th rowspan="2">No</th>
                 <th rowspan="2">Ticker</th>
                 <th colspan="4" style="text-align:center;color:#8b949e;border-right:1px solid #30363d;">IndoBERT, LSTM (Yadav et al.)</th>
-                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, LSTM, Attention (Ours)</th>
+                <th colspan="4" style="text-align:center;color:#58a6ff;">IndoBERT, BiLSTM, Attention (Ours)</th>
             </tr>
             <tr>
                 <th>R2</th><th>MAE (IDR)</th><th>RMSE (IDR)</th><th style="border-right:1px solid #30363d;">MAPE (%)</th>
@@ -1086,9 +1091,8 @@ def page_methodology():
         <div class="section-title">INTERPRETATION</div>
         <p style="font-size:14px;color:#8b949e;line-height:1.8;margin:0;">
             The attention layer learns a weight for each of the 30 days in the input window, so we can read
-            afterwards which days the model relied on. The weights concentrate sharply on the most recent days:
-            about <strong style="color:#58a6ff;">66%</strong> of the total weight sits on Lag 0 alone and
-            roughly <strong style="color:#58a6ff;">97%</strong> falls within Lags 0 to 4.
+            afterwards which days the model relied on. The weights concentrate sharply on the
+            <strong style="color:#58a6ff;">most recent lags</strong> and fall off quickly for older days.
             This is consistent with next-day price prediction, where the latest close carries most of the signal.
             The baseline curve is not an attention distribution. It is a gradient saliency score, which measures
             how sensitive the baseline LSTM's output is to each input day. The two are plotted together for
